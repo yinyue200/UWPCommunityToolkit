@@ -1,0 +1,24 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <MSBuildAllProjects>$(MSBuildAllProjects);$(MSBuildThisFileFullPath)</MSBuildAllProjects>
+    <HasSharedItems>true</HasSharedItems>
+    <SharedGUID>71c5902f-f47c-4f17-beed-251600bb8bb4</SharedGUID>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration">
+    <Import_RootNamespace>Microsoft.Toolkit.Uwp.Notifications.SharedWinRT</Import_RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)ToastExtensions\ToastNotificationHistoryExtensions.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToastExtensions\ToastNotifierExtensions.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToastHistoryChangeTracker\Database\Locks.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToastHistoryChangeTracker\Database\MultiProcessReadWriteLocker.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToastHistoryChangeTracker\Database\ToastHistoryChangeRecord.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToastHistoryChangeTracker\Database\ToastHistoryChangeRecordStatus.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToastHistoryChangeTracker\ToastHistoryChange.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToastHistoryChangeTracker\ToastHistoryChangeDatabase.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToastHistoryChangeTracker\ToastHistoryChangeReader.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToastHistoryChangeTracker\ToastHistoryChangeTracker.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToastHistoryChangeTracker\ToastHistoryChangeType.cs" />
+  </ItemGroup>
+</Project>

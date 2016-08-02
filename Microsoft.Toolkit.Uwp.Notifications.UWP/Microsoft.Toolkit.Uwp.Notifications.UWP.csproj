@@ -125,6 +125,7 @@
     </EmbeddedResource>
   </ItemGroup>
   <Import Project="..\Microsoft.Toolkit.Uwp.Notifications.Shared\Microsoft.Toolkit.Uwp.Notifications.Shared.projitems" Label="Shared" />
+  <Import Project="..\Microsoft.Toolkit.Uwp.Notifications.SharedWinRT\Microsoft.Toolkit.Uwp.Notifications.SharedWinRT.projitems" Label="Shared" />
   <PropertyGroup Condition=" '$(VisualStudioVersion)' == '' or '$(VisualStudioVersion)' &lt; '14.0' ">
     <VisualStudioVersion>14.0</VisualStudioVersion>
   </PropertyGroup>

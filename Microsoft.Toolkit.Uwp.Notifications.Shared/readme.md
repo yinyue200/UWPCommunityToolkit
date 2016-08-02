@@ -3,17 +3,19 @@
 ## Where should I add new code?
 Any code for generating notifications that doesn't use WinRT API's should be written in the Microsoft.Windows.Toolkit.Notifications.Shared project.
 
-UWP-specific code can be written in the WinRT project library.
+UWP/WinRT-specific code can be written in the SharedWinRT project library.
 
 ## What are all the projects for?
-There's five notification projects...
+There's six notification projects...
  - Shared
+ - SharedWinRT
  - NETStandard
  - Portable
  - WinRT
  - UWP
 
-The Shared project is where all the code is contained.
+The Shared project is where all the 100% shared code is contained.
+The SharedWinRT project is where code that's specific to WinRT and UWP lives.
 
 The other four projects are simply there so that the correct DLL's (and WINMD) can be built for specific platforms.
 
