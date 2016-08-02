@@ -323,7 +323,7 @@ namespace Microsoft.Toolkit.Uwp.Services.Facebook
             var isLoggedIn = await LoginAsync();
             if (isLoggedIn)
             {
-                return await PostToFeedAsync(title, description, link, pictureUrl);
+                return await PostToFeedAsync(title, message, description, link, pictureUrl);
             }
 
             return false;
@@ -362,7 +362,38 @@ namespace Microsoft.Toolkit.Uwp.Services.Facebook
             var isLoggedIn = await LoginAsync();
             if (isLoggedIn)
             {
-                return await PostToFeedAsync(title, description, link, pictureUrl);
+                return await PostToFeedWithDialogAsync(title, description, link, pictureUrl);
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Enables posting a picture to the timeline.
+        /// </summary>
+        /// <param name="title">Title of the post.</param>
+        /// <param name="message">Message of the post.</param>
+        /// <param name="description">Description of the post.</param>
+        /// <param name="pictureName">Picture name.</param>
+        /// <param name="pictureStream">Picture stream to upload.</param>
+        /// <returns>Success or failure.</returns>
+        public async Task<bool> PostToFeedAsync(string title, string message, string description, string pictureName, IRandomAccessStreamWithContentType pictureStream)
+        {
+            var pictureId = await PostPictureToFeedAsync(title, pictureName, pictureStream, true);
+            if (pictureId != null)
+            {
+                var link = await GetPictureLinkAsync(pictureId);
+                if (link != null)
+                {
+                    var success = await PostToFeedAsync(title, message, description, link);
+                    if (success)
+                    {
+                        await PublishPictureAsync(pictureId);
+                        return true;
+                    }
+                }
+
+                await DeletePictureAsync(pictureId);
             }
 
             return false;
