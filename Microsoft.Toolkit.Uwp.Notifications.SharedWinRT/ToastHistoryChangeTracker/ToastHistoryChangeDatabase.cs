@@ -8,6 +8,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Windows.Data.Xml.Dom;
 using Windows.Storage;
 using Windows.UI.Notifications;
 
@@ -40,18 +41,18 @@ namespace Microsoft.Toolkit.Uwp.Notifications
         /// </summary>
         /// <param name="notif"></param>
         /// <returns></returns>
-        public static bool SupportsTracking(ToastNotification notif)
+        internal static bool SupportsTracking(ToastNotification notif)
         {
             return notif.Tag.Length > 0;
         }
 
-        public static void EnsureHasTag(ToastNotification notif)
+        internal static void EnsureHasTag(ToastNotification notif)
         {
             if (notif.Tag.Length == 0)
                 notif.Tag = GetAutoTag();
         }
 
-        public static void EnsureHasTag(ScheduledToastNotification notif)
+        internal static void EnsureHasTag(ScheduledToastNotification notif)
         {
             if (notif.Tag.Length == 0)
                 notif.Tag = GetAutoTag();
@@ -62,38 +63,66 @@ namespace Microsoft.Toolkit.Uwp.Notifications
             return Guid.NewGuid().GetHashCode().ToString();
         }
 
-        public static void PopulateRecord(ToastHistoryChangeRecord record, ToastNotification notif, string additionalData)
+        internal static void PopulateRecord(ToastHistoryChangeRecord record, ToastNotification notif, string additionalData)
         {
             record.ToastTag = notif.Tag;
             record.ToastGroup = notif.Group;
 
-            // TODO: Check if we're supporting pulling out the info
-            record.Payload = notif.Content.GetXml();
+            // Store payload if we're doing that
+            if (ToastHistoryChangeTrackerConfiguration.Current.IncludePayload)
+            {
+                record.Payload = notif.Content.GetXml();
+            }
 
-            // TODO: Pull out arguments if we're doing that
+            // Pull out arguments if we're doing that
+            if (ToastHistoryChangeTrackerConfiguration.Current.IncludePayloadArguments)
+            {
+                PopulatePayloadArguments(record, notif.Content);
+            }
 
             record.AdditionalData = additionalData;
         }
 
-        public static void PopulateRecord(ToastHistoryChangeRecord record, ScheduledToastNotification notif, string additionalData)
+        internal static void PopulateRecord(ToastHistoryChangeRecord record, ScheduledToastNotification notif, string additionalData)
         {
             record.ToastTag = notif.Tag;
             record.ToastGroup = notif.Group;
 
-            // TODO: Check if we're supporting pulling out the info
-            record.Payload = notif.Content.GetXml();
+            // Store payload if we're doing that
+            if (ToastHistoryChangeTrackerConfiguration.Current.IncludePayload)
+            {
+                record.Payload = notif.Content.GetXml();
+            }
 
-            // TODO: Pull out arguments if we're doing that
+            // Pull out arguments if we're doing that
+            if (ToastHistoryChangeTrackerConfiguration.Current.IncludePayloadArguments)
+            {
+                PopulatePayloadArguments(record, notif.Content);
+            }
 
             record.AdditionalData = additionalData;
+        }
+
+        private static void PopulatePayloadArguments(ToastHistoryChangeRecord record, XmlDocument content)
+        {
+            record.PayloadArguments = string.Empty;
+            var toastNode = content.SelectSingleNode("/toast");
+            if (toastNode != null)
+            {
+                var launchAttr = toastNode.Attributes.FirstOrDefault(i => i.LocalName.Equals("launch"));
+                if (launchAttr != null)
+                {
+                    record.PayloadArguments = launchAttr.InnerText;
+                }
+            }
         }
 
         /// <summary>
-        /// Used for programmatic adds (or toast replaces)
+        /// Used for programmatic adds (or removes/replaces)
         /// </summary>
-        /// <param name="record"></param>
-        /// <returns></returns>
-        public static Task AddRecord(ToastHistoryChangeRecord record)
+        /// <param name="record">Record to add.</param>
+        /// <returns>Async task.</returns>
+        internal static Task AddRecord(ToastHistoryChangeRecord record)
         {
             return Execute((conn) =>
             {
@@ -101,7 +130,7 @@ namespace Microsoft.Toolkit.Uwp.Notifications
             });
         }
 
-        public static Task AddToastNotification(ToastNotification notif, string additionalData)
+        internal static Task AddToastNotification(ToastNotification notif, string additionalData)
         {
             return Execute((conn) =>
             {
@@ -219,83 +248,83 @@ namespace Microsoft.Toolkit.Uwp.Notifications
             var notifs = ToastNotificationManager.History.GetHistory();
 
             var toBeAdded = new List<ToastNotification>();
+            
+            // Obtain the notifications that we have stored
+            // We skip notifications that have a DateAdded of future values, since
+            // those are scheduled ones that haven't appeared yet.
+            List<JustTagAndGroup> storedNotifs = conn.Query<JustTagAndGroup>(
+                "select distinct ToastTag, ToastGroup from ToastHistoryChangeRecord where DateAdded < ? and Status != ?", now, ToastHistoryChangeRecordStatus.DismissedByUser)
+                .ToList();
 
-            conn.BeginTransaction();
+            var toBeRemoved = storedNotifs.ToList();
 
-            try
+            // For each notification in the platform
+            foreach (var notif in notifs)
             {
-                // Obtain the notifications that we have stored
-                // We skip notifications that have a DateAdded of future values, since
-                // those are scheduled ones that haven't appeared yet.
-                List<JustTagAndGroup> storedNotifs = conn.Query<JustTagAndGroup>(
-                    "select ToastTag, ToastGroup from ToastHistoryChangeRecord where DateAdded < ?", now).ToList();
-
-                var toBeRemoved = storedNotifs.ToList();
-
-                // For each notification in the platform
-                foreach (var notif in notifs)
+                // If we have this notification
+                var existing = storedNotifs.FirstOrDefault(i => i.ToastTag.Equals(notif.Tag) && i.ToastGroup.Equals(notif.Group));
+                if (existing != null)
                 {
-                    // If we have this notification
-                    var existing = storedNotifs.FirstOrDefault(i => i.ToastTag.Equals(notif.Tag) && i.ToastGroup.Equals(notif.Group));
-                    if (existing != null)
-                    {
-                        // Wek want to KEEP it in the database, so take it out of
-                        // the list of notifications to remove
-                        toBeRemoved.Remove(existing);
-                    }
-
-                    // Otherwise it's new (added via push)
-                    else
-                    {
-                        toBeAdded.Add(notif);
-                    }
+                    // Wek want to KEEP it in the database, so take it out of
+                    // the list of notifications to remove
+                    toBeRemoved.Remove(existing);
                 }
 
-                // Mark these as dismissed
-                List<object> removeParams = new List<object>()
-                    {
-                        ToastHistoryChangeRecordStatus.DismissedByUser,
-                        now,
-                        ToastHistoryChangeRecordStatus.DismissedByUser
-                    };
-                foreach (var notif in toBeRemoved)
+                // Otherwise it's new (added via push)
+                else
                 {
-                    conn.Execute(@"update ToastHistoryChangeRecord set Status = ?, DateRemoved = ?
-                            where Status != ? and ToastTag = ? and ToastGroup = ?",
-                        ToastHistoryChangeRecordStatus.DismissedByUser,
-                        now,
-                        ToastHistoryChangeRecordStatus.DismissedByUser,
-                        notif.ToastTag,
-                        notif.ToastGroup);
+                    toBeAdded.Add(notif);
                 }
-
-                // And add the new ones
-                var newRecords = new List<ToastHistoryChangeRecord>(toBeAdded.Count);
-                foreach (var newNotif in toBeAdded)
-                {
-                    // Populate the record entry for it
-                    var record = new ToastHistoryChangeRecord()
-                    {
-                        DateAdded = now,
-                        Status = ToastHistoryChangeRecordStatus.AddedViaPush
-                    };
-                    PopulateRecord(record, newNotif, null);
-                    newRecords.Add(record);
-                }
-
-                // Notification could have been dismissed but not accepted by app yet,
-                // and then new push notification with same tag comes in. Hence we need to
-                // replace existing (or insert if no existing).
-                conn.InsertAll(newRecords);
-
-                conn.Commit();
             }
 
-            catch (Exception ex)
+            if (toBeAdded.Count > 0 || toBeRemoved.Count > 0)
             {
-                Debug.WriteLine(ex.ToString());
-                conn.Rollback();
-                throw ex;
+                try
+                {
+                    conn.BeginTransaction();
+
+                    // Mark these as dismissed
+                    foreach (var notif in toBeRemoved)
+                    {
+                        // Update the last record only
+                        conn.Execute(@"update ToastHistoryChangeRecord set Status = ?, DateRemoved = ?
+                        where UniqueId = (select max(UniqueId) from ToastHistoryChangeRecord where ToastTag = ? and ToastGroup = ?) and Status != ?",
+                            ToastHistoryChangeRecordStatus.DismissedByUser,
+                            now,
+                            notif.ToastTag,
+                            notif.ToastGroup,
+                            ToastHistoryChangeRecordStatus.DismissedByUser);
+                    }
+
+                    // And add the new ones
+                    var newRecords = new List<ToastHistoryChangeRecord>(toBeAdded.Count);
+                    foreach (var newNotif in toBeAdded)
+                    {
+                        // Populate the record entry for it
+                        var record = new ToastHistoryChangeRecord()
+                        {
+                            DateAdded = now,
+                            Status = ToastHistoryChangeRecordStatus.AddedViaPush
+                        };
+                        PopulateRecord(record, newNotif, null);
+                        newRecords.Add(record);
+                    }
+
+                    // Notification could have been dismissed but not accepted by app yet,
+                    // and then new push notification with same tag comes in. Hence we need to
+                    // replace existing (or insert if no existing).
+                    if (newRecords.Count > 0)
+                    {
+                        conn.InsertAll(newRecords);
+                    }
+
+                    conn.Commit();
+                }
+                catch
+                {
+                    conn.Rollback();
+                    throw;
+                }
             }
         }
 
@@ -381,14 +410,17 @@ namespace Microsoft.Toolkit.Uwp.Notifications
                     return Task.FromResult(default(T));
                 }
 
-                return Task.Run(delegate
+                return Task.Run(async delegate
                 {
-                // We'll just always use a write lock, since 90% of the time we're always writing
-                // (even when reading, we'll be potentially creating the database for the first time)
-                using (Locks.LockForWrite())
+                    // We'll just always use a write lock, since 90% of the time we're always writing
+                    // (even when reading, we'll be potentially creating the database for the first time)
+                    using (Locks.LockForWrite())
                     {
-                    // We'll also check after we've established lock
-                    if (!GetIsInGoodState())
+                        // Initialize settings
+                        await ToastHistoryChangeTrackerConfiguration.InitializeAsync();
+
+                        // We'll also check after we've established lock
+                        if (!GetIsInGoodState())
                         {
                             return default(T);
                         }

@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using Windows.Foundation;
 using Windows.UI.Notifications;
 
-namespace Microsoft.Toolkit.Uwp.Notifications.SharedWinRT.ToastExtensions
+namespace Microsoft.Toolkit.Uwp.Notifications
 {
     public static class ToastNotificationHistoryExtensions
     {
@@ -27,7 +27,7 @@ namespace Microsoft.Toolkit.Uwp.Notifications.SharedWinRT.ToastExtensions
 
         public static IAsyncAction RemoveEnhanced(this ToastNotificationHistory history, string tag)
         {
-            return RemoveEnhanced(history, tag, "");
+            return RemoveEnhanced(history, tag, string.Empty);
         }
 
         public static IAsyncAction RemoveEnhanced(this ToastNotificationHistory history, string tag, string group)

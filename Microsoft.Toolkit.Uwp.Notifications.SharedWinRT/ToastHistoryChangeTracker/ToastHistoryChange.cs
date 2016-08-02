@@ -4,6 +4,9 @@ using System.Text;
 
 namespace Microsoft.Toolkit.Uwp.Notifications
 {
+    /// <summary>
+    /// Represents a change in <see cref="Windows.UI.Notifications.ToastNotificationHistory"/>.
+    /// </summary>
     public sealed class ToastHistoryChange
     {
         internal ToastHistoryChange(ToastHistoryChangeRecord record)
@@ -23,6 +26,9 @@ namespace Microsoft.Toolkit.Uwp.Notifications
             Group = record.ToastGroup;
             DateAdded = record.DateAdded;
             DateRemoved = record.DateRemoved;
+            Payload = record.Payload;
+            PayloadArguments = record.PayloadArguments;
+            AdditionalData = record.AdditionalData;
         }
 
         internal ToastHistoryChange() { }
@@ -54,5 +60,20 @@ namespace Microsoft.Toolkit.Uwp.Notifications
         /// the background task does not run immediately.
         /// </summary>
         public DateTimeOffset DateRemoved { get; internal set; }
+
+        /// <summary>
+        /// Gets the XML payload of the notification.
+        /// </summary>
+        public string Payload { get; internal set; }
+
+        /// <summary>
+        /// Gets the Toast launch arguments from the XML payload.
+        /// </summary>
+        public string PayloadArguments { get; internal set; }
+
+        /// <summary>
+        /// Gets additional data that you initially provided when calling one of the *Enhanced methods.
+        /// </summary>
+        public string AdditionalData { get; internal set; }
     }
 }

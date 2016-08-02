@@ -19,6 +19,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)ToastHistoryChangeTracker\ToastHistoryChangeDatabase.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ToastHistoryChangeTracker\ToastHistoryChangeReader.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ToastHistoryChangeTracker\ToastHistoryChangeTracker.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToastHistoryChangeTracker\ToastHistoryChangeTrackerAttribute.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ToastHistoryChangeTracker\ToastHistoryChangeType.cs" />
   </ItemGroup>
 </Project>
