@@ -9,7 +9,7 @@
     <licenseUrl>https://github.com/Microsoft/UWPCommunityToolkit</licenseUrl>
     <projectUrl>https://github.com/Microsoft/UWPCommunityToolkit</projectUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
-    <description>his library provides UI services. It is part of the UWP Community Toolkit.</description>
+    <description>This library provides UI services. It is part of the UWP Community Toolkit.</description>
     <releaseNotes>First public release.</releaseNotes>
     <copyright>Copyright 2016</copyright>
     <tags>UWP Toolkit Windows UI Converters</tags>
@@ -18,9 +18,9 @@
     </dependencies>
   </metadata>
   <files>
-    <file src="..\bin\binaries\Microsoft.Toolkit.Uwp.UI\Microsoft.Toolkit.Uwp.UI.dll" target="lib\uap10.0" />
-    <file src="..\bin\binaries\Microsoft.Toolkit.Uwp.UI\Microsoft.Toolkit.Uwp.UI.pdb" target="lib\uap10.0" />
-    <file src="..\bin\binaries\Microsoft.Toolkit.Uwp.UI\Microsoft.Toolkit.Uwp.UI.pri" target="lib\uap10.0" />
-    <file src="..\bin\binaries\Microsoft.Toolkit.Uwp.UI\Microsoft.Toolkit.Uwp.UI.xml" target="lib\uap10.0" />
+    <file src="$binaries$\Microsoft.Toolkit.Uwp.UI\Microsoft.Toolkit.Uwp.UI.dll" target="lib\uap10.0" />
+    <file src="$binaries$\Microsoft.Toolkit.Uwp.UI\Microsoft.Toolkit.Uwp.UI.pdb" target="lib\uap10.0" />
+    <file src="$binaries$\Microsoft.Toolkit.Uwp.UI\Microsoft.Toolkit.Uwp.UI.pri" target="lib\uap10.0" />
+    <file src="$binaries$\Microsoft.Toolkit.Uwp.UI\Microsoft.Toolkit.Uwp.UI.xml" target="lib\uap10.0" />
   </files>
 </package>
