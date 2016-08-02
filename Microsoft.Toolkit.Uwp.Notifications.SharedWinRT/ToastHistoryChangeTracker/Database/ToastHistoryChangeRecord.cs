@@ -7,27 +7,24 @@ namespace Microsoft.Toolkit.Uwp.Notifications
 {
     internal class ToastHistoryChangeRecord : IComparable<ToastHistoryChangeRecord>
     {
+        [PrimaryKey]
+        [AutoIncrement]
+        public long UniqueId { get; set; }
+
         /// <summary>
         /// 64 chars for tag/group
         /// </summary>
         internal const int MAX_LENGTH_OF_TAG_AND_GROUP = 64;
-
-        /// <summary>
-        /// We combine Tag and Group into one string
-        /// </summary>
-        [PrimaryKey]
+        
+        [Indexed(Name="TagAndGroupIndex")]
         [MaxLength(MAX_LENGTH_OF_TAG_AND_GROUP)]
         [NotNull]
-        public string Tag { get; set; }
+        public string ToastTag { get; set; }
 
-        [PrimaryKey]
+        [Indexed(Name = "TagAndGroupIndex")]
         [MaxLength(MAX_LENGTH_OF_TAG_AND_GROUP)]
         [NotNull]
-        public string Group { get; set; }
-
-        [PrimaryKey]
-        [AutoIncrement]
-        public long UniqueId { get; set; }
+        public string ToastGroup { get; set; }
 
         public ToastHistoryChangeRecordStatus Status { get; set; }
 

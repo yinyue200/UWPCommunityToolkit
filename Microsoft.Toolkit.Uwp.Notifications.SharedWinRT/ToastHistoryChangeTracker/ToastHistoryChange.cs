@@ -19,8 +19,8 @@ namespace Microsoft.Toolkit.Uwp.Notifications
                     break;
             }
 
-            Tag = record.Tag;
-            Group = record.Group;
+            Tag = record.ToastTag;
+            Group = record.ToastGroup;
             DateAdded = record.DateAdded;
             DateRemoved = record.DateRemoved;
         }
