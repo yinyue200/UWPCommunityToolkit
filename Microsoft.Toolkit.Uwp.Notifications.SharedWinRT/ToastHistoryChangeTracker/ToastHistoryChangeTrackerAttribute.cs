@@ -64,11 +64,7 @@ namespace Microsoft.Toolkit.Uwp.Notifications
                         FolderDepth = Windows.Storage.Search.FolderDepth.Shallow
                     });
                     var file = (await queryResult.GetFilesAsync(0, 1)).FirstOrDefault();
-                    if (file == null)
-                    {
-                        _current = new Notifications.ToastHistoryChangeTrackerAttribute();
-                    }
-                    else
+                    if (file != null)
                     {
                         Assembly assembly = Assembly.Load(new AssemblyName() { Name = System.IO.Path.GetFileNameWithoutExtension(file.Name) });
 
@@ -78,9 +74,12 @@ namespace Microsoft.Toolkit.Uwp.Notifications
                         _current = attr;
                     }
                 }
-                catch
+                catch { }
+
+                if (_current == null)
                 {
-                    _current = new Notifications.ToastHistoryChangeTrackerAttribute();
+                    // If there was an exception, or no attribute provided by dev, we use default
+                    _current = new ToastHistoryChangeTrackerAttribute();
                 }
             }
         }

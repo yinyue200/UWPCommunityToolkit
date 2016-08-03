@@ -172,7 +172,8 @@ namespace Microsoft.Toolkit.Uwp.Notifications
         {
             return Execute((conn) =>
             {
-                conn.Execute($@"delete from ToastHistoryChangeRecord where ToastTag = ? and ToastGroup = ?", tag, group);
+                // Only remove the latest (preserve the previous ones)
+                conn.Execute($@"delete from ToastHistoryChangeRecord where UniqueId = (select max(UniqueId) from ToastHistoryChangeRecord where ToastTag = ? and ToastGroup = ?)", tag, group);
             });
         }
 
