@@ -20,6 +20,10 @@ namespace Microsoft.Toolkit.Uwp.Notifications
                 case ToastHistoryChangeRecordStatus.DismissedByUser:
                     ChangeType = ToastHistoryChangeType.DismissedByUser;
                     break;
+
+                case ToastHistoryChangeRecordStatus.Expired:
+                    ChangeType = ToastHistoryChangeType.Expired;
+                    break;
             }
 
             Tag = record.ToastTag;

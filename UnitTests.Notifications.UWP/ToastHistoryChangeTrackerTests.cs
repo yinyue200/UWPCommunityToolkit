@@ -29,7 +29,7 @@ namespace UnitTests.Notifications
         [TestMethod]
         public async Task TestAdd()
         {
-            await Show("Testing", "1");
+            await Show("Testing", "tag");
 
             var changes = await GetChangesAsync();
             Assert.AreEqual(0, changes.Count);
@@ -40,8 +40,8 @@ namespace UnitTests.Notifications
         [TestMethod]
         public async Task TestAddAndRemove()
         {
-            await Show("Testing", "1");
-            await ToastNotificationManager.History.RemoveEnhanced("1");
+            await Show("Testing", "tag");
+            await ToastNotificationManager.History.RemoveEnhanced("tag");
             Assert.AreEqual(0, (await GetChangesAsync()).Count);
 
             await Finish();
@@ -50,17 +50,45 @@ namespace UnitTests.Notifications
         [TestMethod]
         public async Task TestAddAndExpire()
         {
-            var notif = CreateToast("Testing", "1");
+            var notif = CreateToast("Testing", "tag");
             notif.ExpirationTime = DateTime.Now.AddSeconds(1);
 
+            DateTimeOffset beforeAdd = DateTimeOffset.Now;
             await Show(notif);
+            DateTimeOffset afterAdd = DateTimeOffset.Now;
+
+            DateTimeOffset beforeDismiss = DateTimeOffset.Now;
 
             await Task.Delay(2000);
 
             var changes = await GetChangesAsync();
             Assert.AreEqual(1, changes.Count);
             var change = changes.FirstOrDefault();
-            Assert.AreEqual(ToastHistoryChangeType.DismissedByUser, change.ChangeType);
+            Assert.AreEqual(ToastHistoryChangeType.Expired, change.ChangeType);
+            Assert.AreEqual("tag", changes[0].Tag);
+            AssertIsInRange(beforeAdd, changes[0].DateAdded, afterAdd);
+            AssertIsInRange(beforeDismiss, changes[0].DateRemoved, DateTimeOffset.Now);
+
+            await Finish();
+        }
+
+        [TestMethod]
+        public async Task TestAddAndDismiss()
+        {
+            DateTimeOffset beforeAdd = DateTimeOffset.Now;
+            await Show("Testing", "tag");
+            DateTimeOffset afterAdd = DateTimeOffset.Now;
+
+            DateTimeOffset beforeDismiss = DateTimeOffset.Now;
+            Dismiss("tag");
+
+            var changes = await GetChangesAsync();
+            Assert.AreEqual(1, changes.Count);
+            Assert.AreEqual(ToastHistoryChangeType.DismissedByUser, changes[0].ChangeType);
+            Assert.AreEqual("tag", changes[0].Tag);
+            Assert.AreEqual("Testing", changes[0].AdditionalData);
+            Assert.IsTrue(changes[0].DateAdded >= beforeAdd && changes[0].DateAdded <= afterAdd);
+            Assert.IsTrue(changes[0].DateRemoved >= beforeDismiss && changes[0].DateRemoved <= DateTimeOffset.Now);
 
             await Finish();
         }
@@ -68,8 +96,8 @@ namespace UnitTests.Notifications
         [TestMethod]
         public async Task TestAddAndReplaceAndExpire()
         {
-            await Show("First", "1");
-            var notif = CreateToast("Replaced", "1");
+            await Show("First", "tag");
+            var notif = CreateToast("Replaced", "tag");
             notif.ExpirationTime = DateTime.Now.AddSeconds(1);
             await Show(notif, "Replaced");
             Assert.AreEqual(0, (await GetChangesAsync()).Count);
@@ -80,7 +108,7 @@ namespace UnitTests.Notifications
             Assert.AreEqual(1, changes.Count);
 
             var change = changes.FirstOrDefault();
-            Assert.AreEqual(ToastHistoryChangeType.DismissedByUser, change.ChangeType);
+            Assert.AreEqual(ToastHistoryChangeType.Expired, change.ChangeType);
             Assert.AreEqual("Replaced", change.AdditionalData);
 
             await Finish();
@@ -89,7 +117,7 @@ namespace UnitTests.Notifications
         [TestMethod]
         public async Task TestAddAndExpireAndReAddAndExpire()
         {
-            var notif = CreateToast("First", "1");
+            var notif = CreateToast("First", "tag");
             notif.ExpirationTime = DateTime.Now.AddSeconds(1);
             await Show(notif, "First");
 
@@ -97,10 +125,9 @@ namespace UnitTests.Notifications
 
             var changes = await GetChangesAsync();
             Assert.AreEqual(1, changes.Count);
-            var change = changes.First();
-            Assert.AreEqual(ToastHistoryChangeType.DismissedByUser, change.ChangeType);
+            Assert.AreEqual(ToastHistoryChangeType.Expired, changes[0].ChangeType);
 
-            notif = CreateToast("Replaced", "1");
+            notif = CreateToast("Replaced", "tag");
             notif.ExpirationTime = DateTime.Now.AddSeconds(1);
             await Show(notif, "Replaced");
 
@@ -113,8 +140,8 @@ namespace UnitTests.Notifications
             // And now there should be one expired for the latest
             changes = await GetChangesAsync();
             Assert.AreEqual(1, changes.Count);
-            Assert.AreEqual(ToastHistoryChangeType.DismissedByUser, change.ChangeType);
-            Assert.AreEqual("Replaced", change.AdditionalData);
+            Assert.AreEqual(ToastHistoryChangeType.Expired, changes[0].ChangeType);
+            Assert.AreEqual("Replaced", changes[0].AdditionalData);
 
             await Finish();
         }
@@ -122,7 +149,7 @@ namespace UnitTests.Notifications
         [TestMethod]
         public async Task TestAddAndExpireAndReAddAndRemove()
         {
-            var notif = CreateToast("First", "1");
+            var notif = CreateToast("First", "tag");
             notif.ExpirationTime = DateTime.Now.AddSeconds(1);
             await Show(notif, "First");
 
@@ -131,14 +158,14 @@ namespace UnitTests.Notifications
             // The dismiss initially appears
             var changes = await GetChangesAsync();
             Assert.AreEqual(1, changes.Count);
-            Assert.AreEqual(ToastHistoryChangeType.DismissedByUser, changes[0].ChangeType);
+            Assert.AreEqual(ToastHistoryChangeType.Expired, changes[0].ChangeType);
 
             // And then we show again
-            notif = CreateToast("Replaced", "1");
-            await Show("Replaced", "1");
+            notif = CreateToast("Replaced", "tag");
+            await Show("Replaced", "tag");
 
             // And then programmatic remove
-            await ToastNotificationManager.History.RemoveEnhanced("1");
+            await ToastNotificationManager.History.RemoveEnhanced("tag");
             
             // There should be zero changes, since we did programmatic add/remove
             changes = await GetChangesAsync();
@@ -150,7 +177,7 @@ namespace UnitTests.Notifications
         [TestMethod]
         public async Task TestSchedule()
         {
-            await Schedule("Scheduled", "1", DateTime.Now.AddSeconds(1));
+            await Schedule("Scheduled", "tag", DateTime.Now.AddSeconds(1));
 
             var changes = await GetChangesAsync();
             Assert.AreEqual(0, changes.Count);
@@ -170,7 +197,7 @@ namespace UnitTests.Notifications
         public async Task TestScheduleAndUnschedule()
         {
             // Schedule it
-            var scheduled = await Schedule("Scheduled", "1", DateTime.Now.AddSeconds(1));
+            var scheduled = await Schedule("Scheduled", "tag", DateTime.Now.AddSeconds(1));
 
             // Then remove it
             await ToastNotificationManager.CreateToastNotifier().RemoveFromScheduleEnhanced(scheduled);
@@ -192,12 +219,12 @@ namespace UnitTests.Notifications
         {
             // Show toast using non-Enhanced method so it's like a push
             var notifier = ToastNotificationManager.CreateToastNotifier();
-            var notif = CreateToast("Push", "1");
+            var notif = CreateToast("Push", "tag");
             notifier.Show(notif);
 
             var changes = await GetChangesAsync();
             Assert.AreEqual(1, changes.Count);
-            Assert.AreEqual("1", changes[0].Tag);
+            Assert.AreEqual("tag", changes[0].Tag);
             Assert.AreEqual(ToastHistoryChangeType.AddedViaPush, changes[0].ChangeType);
 
             await Finish();
@@ -208,20 +235,20 @@ namespace UnitTests.Notifications
         {
             // Show toast using non-Enhanced method so it's like a push
             var notifier = ToastNotificationManager.CreateToastNotifier();
-            var notif = CreateToast("Push", "1");
+            var notif = CreateToast("Push", "tag");
             notifier.Show(notif);
 
             // Call GetChanges so that it processes the "push" toast
             await GetChangesAsync();
 
             // Replace
-            notifier.Show(CreateToast("Push Replace", "1"));
+            notifier.Show(CreateToast("Push Replace", "tag"));
 
             // There should only be one change, since same tag/group was used
             // Appears as "Added" since dev hadn't committed previous one
             var changes = await GetChangesAsync();
             Assert.AreEqual(1, changes.Count);
-            Assert.AreEqual("1", changes[0].Tag);
+            Assert.AreEqual("tag", changes[0].Tag);
             Assert.AreEqual(ToastHistoryChangeType.AddedViaPush, changes[0].ChangeType);
 
             await Finish();
@@ -232,7 +259,7 @@ namespace UnitTests.Notifications
         {
             // Show toast using non-Enhanced method so it's like a push
             var notifier = ToastNotificationManager.CreateToastNotifier();
-            var notif = CreateToast("Push", "1");
+            var notif = CreateToast("Push", "tag");
             notif.ExpirationTime = DateTime.Now.AddSeconds(1);
             notifier.Show(notif);
 
@@ -258,14 +285,14 @@ namespace UnitTests.Notifications
             await TestAddPushAndExpire();
 
             var notifier = ToastNotificationManager.CreateToastNotifier();
-            var notif = CreateToast("Push Re-Add", "1");
+            var notif = CreateToast("Push Re-Add", "tag");
             notif.ExpirationTime = DateTime.Now.AddSeconds(1);
             notifier.Show(notif);
 
             var changes = await GetChangesAsync();
             Assert.AreEqual(1, changes.Count);
             Assert.AreEqual(ToastHistoryChangeType.AddedViaPush, changes[0].ChangeType);
-            Assert.AreEqual("1", changes[0].Tag);
+            Assert.AreEqual("tag", changes[0].Tag);
 
             await Task.Delay(2000);
 
@@ -283,8 +310,8 @@ namespace UnitTests.Notifications
             // This scenario ensures that AcceptChanges only accepts the changes that
             // the reader itself has seen, and not any new changes that occurred after the
             // reader was created.
-            await Show("First", "1");
-            Dismiss("1");
+            await Show("First", "tag");
+            Dismiss("tag");
 
             var reader = await ToastHistoryChangeTracker.Current.GetChangeReaderAsync();
             var changes = await reader.ReadChangesAsync();
@@ -292,13 +319,13 @@ namespace UnitTests.Notifications
             Assert.AreEqual(ToastHistoryChangeType.DismissedByUser, changes[0].ChangeType);
 
             // Now new notif gets added
-            await Show("Second", "1");
+            await Show("Second", "tag");
 
             // Accepting the changes shouldn't mess anything up
             await reader.AcceptChangesAsync();
 
             // New notif gets dismissed
-            Dismiss("1");
+            Dismiss("tag");
 
             changes = await GetChangesAsync();
             Assert.AreEqual(1, changes.Count);
@@ -312,8 +339,8 @@ namespace UnitTests.Notifications
         public async Task TestAcceptingChangesWhileNewChangesArrive2()
         {
             // Another scenario testing a similar setup
-            await Show("First", "1");
-            Dismiss("1");
+            await Show("First", "tag");
+            Dismiss("tag");
 
             var reader = await ToastHistoryChangeTracker.Current.GetChangeReaderAsync();
             var changes = await reader.ReadChangesAsync();
@@ -321,8 +348,8 @@ namespace UnitTests.Notifications
             Assert.AreEqual(ToastHistoryChangeType.DismissedByUser, changes[0].ChangeType);
 
             // Now new notif gets added and dismissed
-            await Show("Second", "1");
-            Dismiss("1");
+            await Show("Second", "tag");
+            Dismiss("tag");
 
             // Get separate changes (should see the second change)
             await GetChangesAsync();

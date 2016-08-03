@@ -26,6 +26,12 @@ namespace Microsoft.Toolkit.Uwp.Notifications
         DismissedByUser,
 
         /// <summary>
+        /// A toast notification was expired. This value is determined best-effort (it could accidently appear instead of DismissedByUser
+        /// if the trigger task doesn't fire soon enough).
+        /// </summary>
+        Expired,
+
+        /// <summary>
         /// Change tracking was lost. Call <see cref="ToastHistoryChangeTracker.ResetAsync"/> to reestablish continuity with the Toast history.
         /// </summary>
         ChangeTrackingLost

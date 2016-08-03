@@ -8,6 +8,7 @@ namespace Microsoft.Toolkit.Uwp.Notifications
     {
         AddedViaPush,
         Committed,
-        DismissedByUser
+        DismissedByUser,
+        Expired
     }
 }

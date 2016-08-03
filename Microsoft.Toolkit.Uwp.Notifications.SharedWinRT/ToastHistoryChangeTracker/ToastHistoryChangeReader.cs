@@ -39,47 +39,6 @@ namespace Microsoft.Toolkit.Uwp.Notifications
                         .Select(i => new ToastHistoryChange(i))
                         .ToList();
 
-                    for (int i = changes.Count - 1; i >= 0; i--)
-                    {
-                        var change = changes[i];
-
-                        // If the curr change type is AddedViaPush, we need to flip the first previous
-                        // duplicate tag/group to ReplacedByPush (unless it's already dismissed)
-
-                        // If the curr change type is ReplacedByPush, we need to flip first previous
-                        // duplicate tag/group to ReplacedByPush (unless it's already dismissed)
-
-                        // If the curr change type is DismissedByUser, we need to flip first previous
-                        // duplicate tag/group to also be DismissedByUser
-
-                        // Subsequent previous ones will be updated when we hit them in the loop
-
-                        for (int x = i - 1; x >= 0; x--)
-                        {
-                            var prev = changes[x];
-                            if (prev.Tag.Equals(change.Tag) && prev.Group.Equals(change.Group))
-                            {
-                                switch (change.ChangeType)
-                                {
-                                    case ToastHistoryChangeType.AddedViaPush:
-                                    case ToastHistoryChangeType.ReplacedViaPush:
-                                        if (prev.ChangeType != ToastHistoryChangeType.DismissedByUser)
-                                        {
-                                            prev.ChangeType = ToastHistoryChangeType.ReplacedViaPush;
-                                        }
-
-                                        break;
-
-                                    case ToastHistoryChangeType.DismissedByUser:
-                                        prev.ChangeType = ToastHistoryChangeType.DismissedByUser;
-                                        break;
-                                }
-
-                                break;
-                            }
-                        }
-                    }
-
                     reader._changes = changes;
                     return reader;
                 }

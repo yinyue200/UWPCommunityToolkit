@@ -13,11 +13,10 @@
     <Compile Include="$(MSBuildThisFileDirectory)ToastExtensions\ToastNotifierExtensions.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ToastHistoryChangeTracker\Database\Locks.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ToastHistoryChangeTracker\Database\MultiProcessReadWriteLocker.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)ToastHistoryChangeTracker\Database\ScheduledToastRecord.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToastHistoryChangeTracker\Database\ToastHistoryChangeDatabase.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ToastHistoryChangeTracker\Database\ToastHistoryChangeRecord.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ToastHistoryChangeTracker\Database\ToastHistoryChangeRecordStatus.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ToastHistoryChangeTracker\ToastHistoryChange.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)ToastHistoryChangeTracker\ToastHistoryChangeDatabase.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ToastHistoryChangeTracker\ToastHistoryChangeReader.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ToastHistoryChangeTracker\ToastHistoryChangeTracker.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ToastHistoryChangeTracker\ToastHistoryChangeTrackerAttribute.cs" />

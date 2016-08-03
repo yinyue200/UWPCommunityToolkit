@@ -32,6 +32,8 @@ namespace Microsoft.Toolkit.Uwp.Notifications
 
         public DateTimeOffset DateRemoved { get; set; }
 
+        public DateTimeOffset ExpirationTime { get; set; } = DateTimeOffset.Now.AddDays(7);
+
         public string AdditionalData { get; set; }
 
         public string PayloadArguments { get; set; }

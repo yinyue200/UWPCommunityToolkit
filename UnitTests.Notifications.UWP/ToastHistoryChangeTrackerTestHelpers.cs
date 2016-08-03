@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Microsoft.Toolkit.Uwp.Notifications;
 using Windows.Data.Xml.Dom;
 using Windows.UI.Notifications;
+using Microsoft.VisualStudio.TestPlatform.UnitTestFramework;
 
 namespace UnitTests.Notifications
 {
@@ -82,6 +83,12 @@ namespace UnitTests.Notifications
 
             // And then make sure that we don't have any items being returned
             Microsoft.VisualStudio.TestPlatform.UnitTestFramework.Assert.AreEqual(0, (await GetChangesAsync()).Count);
+        }
+
+        public static void AssertIsInRange(DateTimeOffset start, DateTimeOffset value, DateTimeOffset end)
+        {
+            Assert.IsTrue(value >= start, $"value {value} wasn't greater than start {start}");
+            Assert.IsTrue(value <= end, $"value {value} wasn't less than end {end}");
         }
     }
 }
