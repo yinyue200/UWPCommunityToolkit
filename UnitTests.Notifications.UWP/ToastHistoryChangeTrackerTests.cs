@@ -26,17 +26,6 @@ namespace UnitTests.Notifications
             await ToastHistoryChangeTracker.Current.EnableAsync();
         }
 
-        [TestCleanup]
-        public async Task Cleanup()
-        {
-            // Accept the changes
-            var reader = await ToastHistoryChangeTracker.Current.GetChangeReaderAsync();
-            await reader.AcceptChangesAsync();
-
-            // And then make sure that we don't have any items being returned
-            Assert.AreEqual(0, (await GetChangesAsync()).Count);
-        }
-
         [TestMethod]
         public async Task TestAdd()
         {
@@ -44,6 +33,8 @@ namespace UnitTests.Notifications
 
             var changes = await GetChangesAsync();
             Assert.AreEqual(0, changes.Count);
+
+            await Finish();
         }
 
         [TestMethod]
@@ -52,6 +43,8 @@ namespace UnitTests.Notifications
             await Show("Testing", "1");
             await ToastNotificationManager.History.RemoveEnhanced("1");
             Assert.AreEqual(0, (await GetChangesAsync()).Count);
+
+            await Finish();
         }
 
         [TestMethod]
@@ -68,6 +61,8 @@ namespace UnitTests.Notifications
             Assert.AreEqual(1, changes.Count);
             var change = changes.FirstOrDefault();
             Assert.AreEqual(ToastHistoryChangeType.DismissedByUser, change.ChangeType);
+
+            await Finish();
         }
 
         [TestMethod]
@@ -87,6 +82,8 @@ namespace UnitTests.Notifications
             var change = changes.FirstOrDefault();
             Assert.AreEqual(ToastHistoryChangeType.DismissedByUser, change.ChangeType);
             Assert.AreEqual("Replaced", change.AdditionalData);
+
+            await Finish();
         }
 
         [TestMethod]
@@ -107,42 +104,47 @@ namespace UnitTests.Notifications
             notif.ExpirationTime = DateTime.Now.AddSeconds(1);
             await Show(notif, "Replaced");
 
+            // There should be zero changes, since local add clears any previous
+            changes = await GetChangesAsync();
+            Assert.AreEqual(0, changes.Count);
+
             await Task.Delay(2000);
 
+            // And now there should be one expired for the latest
             changes = await GetChangesAsync();
-            Assert.AreEqual(2, changes.Count);
-            Assert.AreEqual(ToastHistoryChangeType.DismissedByUser, changes[0].ChangeType);
-            Assert.AreEqual(ToastHistoryChangeType.DismissedByUser, changes[1].ChangeType);
-            Assert.AreEqual("First", changes[0].AdditionalData);
-            Assert.AreEqual("Replaced", changes[1].AdditionalData);
+            Assert.AreEqual(1, changes.Count);
+            Assert.AreEqual(ToastHistoryChangeType.DismissedByUser, change.ChangeType);
+            Assert.AreEqual("Replaced", change.AdditionalData);
+
+            await Finish();
         }
 
         [TestMethod]
         public async Task TestAddAndExpireAndReAddAndRemove()
         {
-            // In this scenario, the first dismiss (expire) should be preserved,
-            // but the remove shouldn't appear anywhere since that was a dev action
-
             var notif = CreateToast("First", "1");
             notif.ExpirationTime = DateTime.Now.AddSeconds(1);
             await Show(notif, "First");
 
             await Task.Delay(2000);
 
+            // The dismiss initially appears
             var changes = await GetChangesAsync();
             Assert.AreEqual(1, changes.Count);
-            var change = changes.First();
-            Assert.AreEqual(ToastHistoryChangeType.DismissedByUser, change.ChangeType);
+            Assert.AreEqual(ToastHistoryChangeType.DismissedByUser, changes[0].ChangeType);
 
+            // And then we show again
             notif = CreateToast("Replaced", "1");
             await Show("Replaced", "1");
 
+            // And then programmatic remove
             await ToastNotificationManager.History.RemoveEnhanced("1");
             
+            // There should be zero changes, since we did programmatic add/remove
             changes = await GetChangesAsync();
-            Assert.AreEqual(1, changes.Count);
-            Assert.AreEqual(ToastHistoryChangeType.DismissedByUser, changes[0].ChangeType);
-            Assert.AreEqual("First", changes[0].AdditionalData);
+            Assert.AreEqual(0, changes.Count);
+
+            await Finish();
         }
 
         [TestMethod]
@@ -160,6 +162,8 @@ namespace UnitTests.Notifications
             Assert.AreEqual(0, changes.Count());
 
             // Unfortunately can't test expired, since ScheduledToast is missing Expired property
+
+            await Finish();
         }
 
         [TestMethod]
@@ -179,6 +183,8 @@ namespace UnitTests.Notifications
             await Task.Delay(2000);
             changes = await GetChangesAsync();
             Assert.AreEqual(0, changes.Count());
+
+            await Finish();
         }
 
         [TestMethod]
@@ -193,6 +199,8 @@ namespace UnitTests.Notifications
             Assert.AreEqual(1, changes.Count);
             Assert.AreEqual("1", changes[0].Tag);
             Assert.AreEqual(ToastHistoryChangeType.AddedViaPush, changes[0].ChangeType);
+
+            await Finish();
         }
 
         [TestMethod]
@@ -209,12 +217,14 @@ namespace UnitTests.Notifications
             // Replace
             notifier.Show(CreateToast("Push Replace", "1"));
 
+            // There should only be one change, since same tag/group was used
+            // Appears as "Added" since dev hadn't committed previous one
             var changes = await GetChangesAsync();
-            Assert.AreEqual(2, changes.Count);
+            Assert.AreEqual(1, changes.Count);
             Assert.AreEqual("1", changes[0].Tag);
-            Assert.AreEqual(ToastHistoryChangeType.ReplacedViaPush, changes[0].ChangeType);
-            Assert.AreEqual("1", changes[1].Tag);
-            Assert.AreEqual(ToastHistoryChangeType.AddedViaPush, changes[1].ChangeType);
+            Assert.AreEqual(ToastHistoryChangeType.AddedViaPush, changes[0].ChangeType);
+
+            await Finish();
         }
 
         [TestMethod]
@@ -231,10 +241,15 @@ namespace UnitTests.Notifications
 
             await Task.Delay(2000);
 
+            // There should be zero changes, since the dev never accepted the initial
+            // change, so to the dev's perspective, the push never even occurred.
+            // This is the same behavior as ContactChangeTracker, if a contact was added
+            // and then removed without dev calling AcceptChanges before the remove occurred,
+            // the dev is never notified of the subsequent remove.
             var changes = await GetChangesAsync();
-            Assert.AreEqual(1, changes.Count);
-            Assert.AreEqual(ToastHistoryChangeType.DismissedByUser, changes[0].ChangeType);
-            Assert.AreEqual("1", changes[0].Tag);
+            Assert.AreEqual(0, changes.Count);
+
+            await Finish();
         }
 
         [TestMethod]
@@ -248,20 +263,84 @@ namespace UnitTests.Notifications
             notifier.Show(notif);
 
             var changes = await GetChangesAsync();
-            Assert.AreEqual(2, changes.Count);
-            Assert.AreEqual(ToastHistoryChangeType.DismissedByUser, changes[0].ChangeType);
+            Assert.AreEqual(1, changes.Count);
+            Assert.AreEqual(ToastHistoryChangeType.AddedViaPush, changes[0].ChangeType);
             Assert.AreEqual("1", changes[0].Tag);
-            Assert.AreEqual(ToastHistoryChangeType.AddedViaPush, changes[1].ChangeType);
-            Assert.AreEqual("1", changes[1].Tag);
 
             await Task.Delay(2000);
 
+            // Same explanation as previous scenario, dev shouldn't know about this change
+            // since they didn't accept previous changes
             changes = await GetChangesAsync();
-            Assert.AreEqual(2, changes.Count);
+            Assert.AreEqual(0, changes.Count);
+
+            await Finish();
+        }
+
+        [TestMethod]
+        public async Task TestAcceptingChangesWhileNewChangesArrive()
+        {
+            // This scenario ensures that AcceptChanges only accepts the changes that
+            // the reader itself has seen, and not any new changes that occurred after the
+            // reader was created.
+            await Show("First", "1");
+            Dismiss("1");
+
+            var reader = await ToastHistoryChangeTracker.Current.GetChangeReaderAsync();
+            var changes = await reader.ReadChangesAsync();
+            Assert.AreEqual(1, changes.Count);
             Assert.AreEqual(ToastHistoryChangeType.DismissedByUser, changes[0].ChangeType);
-            Assert.AreEqual("1", changes[0].Tag);
-            Assert.AreEqual(ToastHistoryChangeType.DismissedByUser, changes[1].ChangeType);
-            Assert.AreEqual("1", changes[1].Tag);
+
+            // Now new notif gets added
+            await Show("Second", "1");
+
+            // Accepting the changes shouldn't mess anything up
+            await reader.AcceptChangesAsync();
+
+            // New notif gets dismissed
+            Dismiss("1");
+
+            changes = await GetChangesAsync();
+            Assert.AreEqual(1, changes.Count);
+            Assert.AreEqual(ToastHistoryChangeType.DismissedByUser, changes[0].ChangeType);
+            Assert.AreEqual("Second", changes[0].AdditionalData);
+
+            await Finish();
+        }
+
+        [TestMethod]
+        public async Task TestAcceptingChangesWhileNewChangesArrive2()
+        {
+            // Another scenario testing a similar setup
+            await Show("First", "1");
+            Dismiss("1");
+
+            var reader = await ToastHistoryChangeTracker.Current.GetChangeReaderAsync();
+            var changes = await reader.ReadChangesAsync();
+            Assert.AreEqual(1, changes.Count);
+            Assert.AreEqual(ToastHistoryChangeType.DismissedByUser, changes[0].ChangeType);
+
+            // Now new notif gets added and dismissed
+            await Show("Second", "1");
+            Dismiss("1");
+
+            // Get separate changes (should see the second change)
+            await GetChangesAsync();
+            changes = await GetChangesAsync();
+            Assert.AreEqual(1, changes.Count);
+            Assert.AreEqual(ToastHistoryChangeType.DismissedByUser, changes[0].ChangeType);
+            Assert.AreEqual("Second", changes[0].AdditionalData);
+
+            // Now accept the old changes
+            await reader.AcceptChangesAsync();
+
+            // And now get changes again (we should still have the second change)
+            changes = await GetChangesAsync();
+            Assert.AreEqual(1, changes.Count);
+            Assert.AreEqual(ToastHistoryChangeType.DismissedByUser, changes[0].ChangeType);
+            Assert.AreEqual("Second", changes[0].AdditionalData);
+
+            await Finish();
         }
     }
 }

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -83,7 +84,10 @@ namespace Microsoft.Toolkit.Uwp.Notifications
                     return reader;
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex.ToString());
+            }
 
             // Either null answer or exception brings us down to this point
             reader._changes = new List<ToastHistoryChange>()

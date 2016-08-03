@@ -77,13 +77,13 @@ namespace Microsoft.Toolkit.Uwp.Notifications
             // Pull out arguments if we're doing that
             if (ToastHistoryChangeTrackerConfiguration.Current.IncludePayloadArguments)
             {
-                PopulatePayloadArguments(record, notif.Content);
+                record.PayloadArguments = GetPayloadArguments(notif.Content);
             }
 
             record.AdditionalData = additionalData;
         }
 
-        internal static void PopulateRecord(ToastHistoryChangeRecord record, ScheduledToastNotification notif, string additionalData)
+        internal static void PopulateRecord(ScheduledToastRecord record, ScheduledToastNotification notif, string additionalData)
         {
             record.ToastTag = notif.Tag;
             record.ToastGroup = notif.Group;
@@ -97,24 +97,24 @@ namespace Microsoft.Toolkit.Uwp.Notifications
             // Pull out arguments if we're doing that
             if (ToastHistoryChangeTrackerConfiguration.Current.IncludePayloadArguments)
             {
-                PopulatePayloadArguments(record, notif.Content);
+                record.PayloadArguments = GetPayloadArguments(notif.Content);
             }
 
             record.AdditionalData = additionalData;
         }
 
-        private static void PopulatePayloadArguments(ToastHistoryChangeRecord record, XmlDocument content)
+        private static string GetPayloadArguments(XmlDocument content)
         {
-            record.PayloadArguments = string.Empty;
             var toastNode = content.SelectSingleNode("/toast");
             if (toastNode != null)
             {
                 var launchAttr = toastNode.Attributes.FirstOrDefault(i => i.LocalName.Equals("launch"));
                 if (launchAttr != null)
                 {
-                    record.PayloadArguments = launchAttr.InnerText;
+                    return launchAttr.InnerText;
                 }
             }
+            return string.Empty;
         }
 
         /// <summary>
@@ -157,12 +157,11 @@ namespace Microsoft.Toolkit.Uwp.Notifications
                 ToastHistoryChangeDatabase.EnsureHasTag(notif);
 
                 // Populate the record entry
-                ToastHistoryChangeRecord record = new Notifications.ToastHistoryChangeRecord()
+                ScheduledToastRecord record = new Notifications.ScheduledToastRecord()
                 {
-                    DateAdded = notif.DeliveryTime,
-                    Status = ToastHistoryChangeRecordStatus.Committed
+                    DeliveryTime = notif.DeliveryTime
                 };
-                ToastHistoryChangeDatabase.PopulateRecord(record, notif, additionalData);
+                PopulateRecord(record, notif, additionalData);
 
                 conn.Insert(record);
             });
@@ -221,10 +220,12 @@ namespace Microsoft.Toolkit.Uwp.Notifications
             if (!enabling)
             {
                 conn.ExecuteScalar<int>("select count(*) from ToastHistoryChangeRecord");
+                conn.ExecuteScalar<int>("select count(*) from ScheduledToastRecord");
             }
 
             // Creates table (if already exists, does nothing)
             conn.CreateTable<ToastHistoryChangeRecord>();
+            conn.CreateTable<ScheduledToastRecord>();
 
             return conn;
         }
@@ -246,15 +247,18 @@ namespace Microsoft.Toolkit.Uwp.Notifications
         private static void SyncWithPlatformHelper(DateTimeOffset now, SQLiteConnection conn)
         {
             // Get all current notifications from the platform
-            var notifs = ToastNotificationManager.History.GetHistory();
+            var notifs = ToastNotificationManager.History.GetHistory().Where(i => i.Tag.Length > 0);
 
             var toBeAdded = new List<ToastNotification>();
+
+            // HMM TODO - we should probably manage dupes while inserting... then we can make the updating a lot more efficient too
+            // for when we support expire
             
             // Obtain the notifications that we have stored
             // We skip notifications that have a DateAdded of future values, since
             // those are scheduled ones that haven't appeared yet.
             List<JustTagAndGroup> storedNotifs = conn.Query<JustTagAndGroup>(
-                "select distinct ToastTag, ToastGroup from ToastHistoryChangeRecord where DateAdded < ? and Status != ?", now, ToastHistoryChangeRecordStatus.DismissedByUser)
+                "select distinct ToastTag, ToastGroup from ToastHistoryChangeRecord where DateAdded <= ? and Status != ?", now, ToastHistoryChangeRecordStatus.DismissedByUser)
                 .ToList();
 
             var toBeRemoved = storedNotifs.ToList();
@@ -287,14 +291,24 @@ namespace Microsoft.Toolkit.Uwp.Notifications
                     // Mark these as dismissed
                     foreach (var notif in toBeRemoved)
                     {
-                        // Update the last record only
-                        conn.Execute(@"update ToastHistoryChangeRecord set Status = ?, DateRemoved = ?
-                        where UniqueId = (select max(UniqueId) from ToastHistoryChangeRecord where ToastTag = ? and ToastGroup = ?) and Status != ?",
-                            ToastHistoryChangeRecordStatus.DismissedByUser,
-                            now,
-                            notif.ToastTag,
-                            notif.ToastGroup,
-                            ToastHistoryChangeRecordStatus.DismissedByUser);
+                        // We update any that are committed to be dismissed
+                        // And we simply delete any adds via push
+                        var command = conn.CreateCommand(@"update ToastHistoryChangeRecord
+set Status = @dismissed, DateRemoved = @now
+where ToastTag = @tag and ToastGroup = @group and DateAdded <= @now and Status = @committed");
+                        command.Bind("@dismissed", ToastHistoryChangeRecordStatus.DismissedByUser);
+                        command.Bind("@now", now);
+                        command.Bind("@tag", notif.ToastTag);
+                        command.Bind("@group", notif.ToastGroup);
+                        command.Bind("@committed", ToastHistoryChangeRecordStatus.Committed);
+                        command.ExecuteNonQuery();
+
+                        var deleteCommand = conn.CreateCommand(@"delete from ToastHistoryChangeRecord
+where ToastTag = @tag and ToastGroup = @group and Status = @addedViaPush");
+                        deleteCommand.Bind("@tag", notif.ToastTag);
+                        deleteCommand.Bind("@group", notif.ToastGroup);
+                        deleteCommand.Bind("@addedViaPush", ToastHistoryChangeRecordStatus.AddedViaPush);
+                        deleteCommand.ExecuteNonQuery();
                     }
 
                     // And add the new ones
@@ -327,6 +341,13 @@ namespace Microsoft.Toolkit.Uwp.Notifications
                     throw;
                 }
             }
+
+            // Clean up any duplicates
+            conn.Execute(
+                @"delete from ToastHistoryChangeRecord
+                where UniqueId in (select r1.UniqueId from ToastHistoryChangeRecord as r1 where r1.DateAdded <= ? and exists (select * from ToastHistoryChangeRecord as r2 where r2.ToastTag = r1.ToastTag and r2.ToastGroup = r1.ToastGroup and r2.DateAdded >= r1.DateAdded and r2.DateAdded <= ? and r2.UniqueId != r1.UniqueId))",
+                now,
+                now);
         }
 
         /// <summary>
@@ -342,7 +363,7 @@ namespace Microsoft.Toolkit.Uwp.Notifications
                 SyncWithPlatformHelper(now, conn);
 
                 return conn.Table<ToastHistoryChangeRecord>()
-                    .Where(i => i.Status != ToastHistoryChangeRecordStatus.Committed && i.DateAdded <= now)
+                    .Where(i => i.Status != ToastHistoryChangeRecordStatus.Committed)
                     .ToArray();
             });
         }
@@ -360,30 +381,42 @@ namespace Microsoft.Toolkit.Uwp.Notifications
 
                 try
                 {
+
                     foreach (var acceptedChange in changes)
                     {
+                        // We set all where DateAdded is less than or equal to the accepted change
+                        // since anything greater is guaranteed to be older
                         if (acceptedChange.Status == ToastHistoryChangeRecordStatus.AddedViaPush)
                         {
                             // For something that was AddedViaPush, the only next state is Committed,
                             // so don't even need to check whether the state isn't Committed
-                            conn.Execute(@"update ToastHistoryChangeRecord
-                            set Status = ?
-                            where UniqueId = ?",
+                            conn.Execute(
+                                @"update ToastHistoryChangeRecord
+                                set Status = ?
+                                where ToastTag = ?
+                                and ToastGroup = ?
+                                and DateAdded <= ?",
                                 ToastHistoryChangeRecordStatus.Committed,
-                                acceptedChange.UniqueId);
+                                acceptedChange.ToastTag,
+                                acceptedChange.ToastGroup,
+                                acceptedChange.DateAdded);
                         }
                         else if (acceptedChange.Status == ToastHistoryChangeRecordStatus.DismissedByUser)
                         {
                             // For something that was dismissed by user, the only next state is to delete the row
-                            conn.Execute(@"delete from ToastHistoryChangeRecord
-                            where UniqueId = ?",
-                                acceptedChange.UniqueId);
+                            conn.Execute(
+                                @"delete from ToastHistoryChangeRecord
+                                where ToastTag = ?
+                                and ToastGroup = ?
+                                and DateAdded <= ?",
+                                acceptedChange.ToastTag,
+                                acceptedChange.ToastGroup,
+                                acceptedChange.DateAdded);
                         }
                     }
 
                     conn.Commit();
                 }
-
                 catch
                 {
                     conn.RollbackTo(transactionPoint);
@@ -455,12 +488,13 @@ namespace Microsoft.Toolkit.Uwp.Notifications
         {
             DateTimeOffset now = DateTimeOffset.Now;
             var notifs = ToastNotificationManager.History.GetHistory();
+            var scheduledNotifs = ToastNotificationManager.CreateToastNotifier().GetScheduledToastNotifications();
 
             using (var conn = CreateConnection(enabling: true))
             {
                 // We populate it with the initial toast notifications
                 var newRecords = new List<ToastHistoryChangeRecord>(notifs.Count);
-                foreach (var newNotif in notifs)
+                foreach (var newNotif in notifs.Where(i => i.Tag.Length > 0))
                 {
                     // Populate the record entry for it
                     var record = new ToastHistoryChangeRecord()
@@ -473,6 +507,18 @@ namespace Microsoft.Toolkit.Uwp.Notifications
                 }
                 
                 conn.InsertAll(newRecords);
+
+                var newSchedules = new List<ScheduledToastRecord>(scheduledNotifs.Count);
+                foreach (var scheduled in scheduledNotifs.Where(i => i.Tag.Length > 0))
+                {
+                    var record = new ScheduledToastRecord()
+                    {
+                        DeliveryTime = scheduled.DeliveryTime
+                    };
+                    PopulateRecord(record, scheduled, null);
+                    newSchedules.Add(record);
+                }
+                conn.InsertAll(newSchedules);
             }
 
             SetIsInGoodState(true);

@@ -68,5 +68,20 @@ namespace UnitTests.Notifications
             var reader = await ToastHistoryChangeTracker.Current.GetChangeReaderAsync();
             return await reader.ReadChangesAsync();
         }
+
+        public static void Dismiss(string tag)
+        {
+            ToastNotificationManager.History.Remove(tag);
+        }
+
+        public static async Task Finish()
+        {
+            // Accept the changes
+            var reader = await ToastHistoryChangeTracker.Current.GetChangeReaderAsync();
+            await reader.AcceptChangesAsync();
+
+            // And then make sure that we don't have any items being returned
+            Microsoft.VisualStudio.TestPlatform.UnitTestFramework.Assert.AreEqual(0, (await GetChangesAsync()).Count);
+        }
     }
 }
