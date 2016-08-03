@@ -140,15 +140,18 @@ namespace Microsoft.Toolkit.Uwp.Notifications
 
                 // Delete any other existing, since the programmatic add replaces
                 // We check DateAdded to preserve scheduled notifications
-                conn.Execute(
-                    @"delete from ToastHistoryChangeRecord
-                    where ToastTag = ? and ToastGroup = ? and DateAdded <= ?",
-                    notif.Tag,
-                    notif.Group,
-                    record.DateAdded);
+                conn.RunInTransaction(() =>
+                {
+                    conn.Execute(
+                        @"delete from ToastHistoryChangeRecord
+                        where ToastTag = ? and ToastGroup = ? and DateAdded <= ?",
+                        notif.Tag,
+                        notif.Group,
+                        record.DateAdded);
 
-                // And then insert this
-                conn.Insert(record);
+                    // And then insert this
+                    conn.Insert(record);
+                });
             });
         }
 
