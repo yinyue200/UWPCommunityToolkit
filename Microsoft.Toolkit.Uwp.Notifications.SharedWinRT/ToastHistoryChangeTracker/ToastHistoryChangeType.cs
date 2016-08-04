@@ -15,21 +15,10 @@ namespace Microsoft.Toolkit.Uwp.Notifications
         AddedViaPush,
 
         /// <summary>
-        /// A Toast notification was added via push and replaced an existing Toast notification that had the same tag/group.
+        /// A Toast notification was either (1) dismissed by the user, (2) clicked on by the user, (3) expired based on the exipration time,
+        /// or (4) removed via push. You will NOT receive a change if you remove the notification programmatically via the local API's.
         /// </summary>
-        ReplacedViaPush,
-
-        /// <summary>
-        /// A Toast notification was dismissed by the user, by either (1) dismissing the single notification, 
-        /// (2) dismissing an entire group of notifications, or (3) clicking on the notification or one of its buttons.
-        /// </summary>
-        DismissedByUser,
-
-        /// <summary>
-        /// A toast notification was expired. This value is determined best-effort (it could accidently appear instead of DismissedByUser
-        /// if the trigger task doesn't fire soon enough).
-        /// </summary>
-        Expired,
+        Removed,
 
         /// <summary>
         /// Change tracking was lost. Call <see cref="ToastHistoryChangeTracker.ResetAsync"/> to reestablish continuity with the Toast history.

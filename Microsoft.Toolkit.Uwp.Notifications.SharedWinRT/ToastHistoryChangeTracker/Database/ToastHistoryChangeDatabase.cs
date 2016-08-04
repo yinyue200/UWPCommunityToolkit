@@ -123,7 +123,7 @@ namespace Microsoft.Toolkit.Uwp.Notifications
             return string.Empty;
         }
 
-        internal static Task AddToastNotification(ToastNotification notif, string additionalData)
+        internal static Task ShowToastNotification(ToastNotifier notifier, ToastNotification notif, string additionalData)
         {
             return Execute((conn) =>
             {
@@ -151,11 +151,14 @@ namespace Microsoft.Toolkit.Uwp.Notifications
 
                     // And then insert this
                     conn.Insert(record);
+
+                    // And then show the toast (if the Show fails, it'll roll back our changes too)
+                    notifier.Show(notif);
                 });
             });
         }
 
-        public static Task AddScheduledToastNotification(ScheduledToastNotification notif, string additionalData)
+        public static Task AddScheduledToastNotification(ToastNotifier notifier, ScheduledToastNotification notif, string additionalData)
         {
             return Execute((conn) =>
             {
@@ -170,43 +173,90 @@ namespace Microsoft.Toolkit.Uwp.Notifications
                 };
                 PopulateRecord(record, notif, additionalData);
 
-                conn.Insert(record);
+                conn.RunInTransaction(() =>
+                {
+                    conn.Insert(record);
+
+                    // If the add fails, our database changes will be rolled back
+                    notifier.AddToSchedule(notif);
+                });
             });
         }
 
-        public static Task Remove(string tag, string group)
+        public static Task Remove(ToastNotificationHistory history, string tag)
         {
             return Execute((conn) =>
             {
-                conn.Execute($@"delete from ToastHistoryChangeRecord where ToastTag = ? and ToastGroup = ? and DateAdded <= ?", tag, group, DateTimeOffset.Now);
+                conn.RunInTransaction(() =>
+                {
+                    conn.Execute($@"delete from ToastHistoryChangeRecord where ToastTag = ? and ToastGroup = '' and DateAdded <= ?", tag, DateTimeOffset.Now);
+
+                    history.Remove(tag);
+                });
             });
         }
 
-        public static Task RemoveGroup(string group)
+        public static Task Remove(ToastNotificationHistory history, string tag, string group)
         {
             return Execute((conn) =>
             {
-                conn.Execute($@"delete from ToastHistoryChangeRecord where ToastGroup = ? and DateAdded <= ?", group, DateTimeOffset.Now);
+                conn.RunInTransaction(() =>
+                {
+                    conn.Execute($@"delete from ToastHistoryChangeRecord where ToastTag = ? and ToastGroup = ? and DateAdded <= ?", tag, group, DateTimeOffset.Now);
+
+                    history.Remove(tag, group);
+                });
             });
         }
 
-        public static Task Clear()
+        public static Task RemoveGroup(ToastNotificationHistory history, string group)
         {
             return Execute((conn) =>
             {
-                conn.Execute("delete from ToastHistoryChangeRecord where DateAdded <= ?", DateTimeOffset.Now);
+                conn.RunInTransaction(() =>
+                {
+                    conn.Execute($@"delete from ToastHistoryChangeRecord where ToastGroup = ? and DateAdded <= ?", group, DateTimeOffset.Now);
+
+                    history.RemoveGroup(group);
+                });
             });
         }
 
-        public static Task RemoveScheduled(string tag, string group, DateTimeOffset deliveryTime)
+        public static Task Clear(ToastNotificationHistory history)
         {
             return Execute((conn) =>
             {
-                conn.Execute(
-                    $"delete from ToastHistoryChangeRecord where ToastTag = ? and ToastGroup = ? and DateAdded = ?",
-                    tag,
-                    group,
-                    deliveryTime);
+                conn.RunInTransaction(() =>
+                {
+                    conn.Execute("delete from ToastHistoryChangeRecord where DateAdded <= ?", DateTimeOffset.Now);
+
+                    history.Clear();
+                });
+            });
+        }
+
+        public static Task RemoveScheduled(ToastNotifier notifier, ScheduledToastNotification notif)
+        {
+            return Execute((conn) =>
+            {
+                // If notif hasn't appeared yet, we'll remove it
+                if (notif.DeliveryTime > DateTimeOffset.Now)
+                {
+                    conn.RunInTransaction(() =>
+                    {
+                        conn.Execute(
+                            $"delete from ToastHistoryChangeRecord where ToastTag = ? and ToastGroup = ? and DateAdded = ?",
+                            notif.Tag,
+                            notif.Group,
+                            notif.DeliveryTime);
+
+                        notifier.RemoveFromSchedule(notif);
+                    });
+                }
+                else
+                {
+                    notifier.RemoveFromSchedule(notif);
+                }
             });
         }
 
@@ -281,7 +331,7 @@ namespace Microsoft.Toolkit.Uwp.Notifications
             List<QuickRecord> storedNotifs = conn.Query<QuickRecord>(
                 "select UniqueId, ToastTag, ToastGroup, DateAdded, ExpirationTime, Status from ToastHistoryChangeRecord where DateAdded <= ? and Status != ?",
                 now,
-                ToastHistoryChangeRecordStatus.DismissedByUser)
+                ToastHistoryChangeRecordStatus.Removed)
                 .ToList();
 
             // Find and remove the dupes
@@ -353,31 +403,16 @@ namespace Microsoft.Toolkit.Uwp.Notifications
                         conn.Execute("delete from ToastHistoryChangeRecord where UniqueId " + In(uniqueIdsToDelete));
                     }
 
-                    // See which were expired
-                    long[] uniqueIdsToChangeToExpired = toBeRemoved
-                        .Where(i => i.ExpirationTime <= now)
+                    // Notifications to change to Removed
+                    long[] uniqueIdsToChangeToRemoved = toBeRemoved
                         .Select(i => i.UniqueId)
                         .ToArray();
-                    if (uniqueIdsToChangeToExpired.Length > 0)
+                    if (uniqueIdsToChangeToRemoved.Length > 0)
                     {
                         conn.Execute(
                             $@"update ToastHistoryChangeRecord
-                            set Status = {(int)ToastHistoryChangeRecordStatus.Expired}, DateRemoved = ?
-                            where UniqueId " + In(uniqueIdsToChangeToExpired),
-                            now);
-                    }
-
-                    // And everything else were just dismissed
-                    long[] uniqueIdsToChangeToDismissed = toBeRemoved
-                        .Where(i => i.ExpirationTime > now)
-                        .Select(i => i.UniqueId)
-                        .ToArray();
-                    if (uniqueIdsToChangeToDismissed.Length > 0)
-                    {
-                        conn.Execute(
-                            $@"update ToastHistoryChangeRecord
-                            set Status = {(int)ToastHistoryChangeRecordStatus.DismissedByUser}, DateRemoved = ?
-                            where UniqueId " + In(uniqueIdsToChangeToDismissed),
+                            set Status = {(int)ToastHistoryChangeRecordStatus.Removed}, DateRemoved = ?
+                            where UniqueId " + In(uniqueIdsToChangeToRemoved),
                             now);
                     }
 
@@ -456,9 +491,9 @@ namespace Microsoft.Toolkit.Uwp.Notifications
             {
                 conn.RunInTransaction(() =>
                 {
-                    // For dismissals or expires, the only action is to delete from the database
+                    // For removals, the only action is to delete from the database
                     long[] uniqueIdsToDelete = changes
-                        .Where(i => i.Status == ToastHistoryChangeRecordStatus.DismissedByUser || i.Status == ToastHistoryChangeRecordStatus.Expired)
+                        .Where(i => i.Status == ToastHistoryChangeRecordStatus.Removed)
                         .Select(i => i.UniqueId)
                         .ToArray();
                     if (uniqueIdsToDelete.Length > 0)
@@ -479,6 +514,36 @@ namespace Microsoft.Toolkit.Uwp.Notifications
                         where UniqueId " + In(uniqueIdsToCommit));
                     }
                 });
+            });
+        }
+
+        public static Task<ToastHistoryChangeRecord> MarkChasedAsync(string arguments)
+        {
+            DateTimeOffset now = DateTimeOffset.Now;
+
+            return Execute((conn) =>
+            {
+                ToastHistoryChangeRecord[] records = conn.Table<ToastHistoryChangeRecord>()
+                    .Where(i => i.PayloadArguments.Equals(arguments) && i.DateAdded <= now)
+                    .ToArray();
+
+                if (records.Length == 0)
+                {
+                    return null;
+                }
+
+                ToastHistoryChangeRecord newest = records[0];
+                for (int i = 1; i < records.Length; i++)
+                {
+                    if (records[i].DateAdded >= newest.DateAdded)
+                    {
+                        newest = records[i];
+                    }
+                }
+
+                conn.Execute("delete from ToastHistoryChangeRecord where PayloadArguments = ?", arguments);
+
+                return newest;
             });
         }
 

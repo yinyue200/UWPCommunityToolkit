@@ -17,12 +17,8 @@ namespace Microsoft.Toolkit.Uwp.Notifications
                     ChangeType = ToastHistoryChangeType.AddedViaPush;
                     break;
 
-                case ToastHistoryChangeRecordStatus.DismissedByUser:
-                    ChangeType = ToastHistoryChangeType.DismissedByUser;
-                    break;
-
-                case ToastHistoryChangeRecordStatus.Expired:
-                    ChangeType = ToastHistoryChangeType.Expired;
+                case ToastHistoryChangeRecordStatus.Removed:
+                    ChangeType = ToastHistoryChangeType.Removed;
                     break;
             }
 

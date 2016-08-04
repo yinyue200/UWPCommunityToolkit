@@ -52,6 +52,26 @@ namespace UnitTests.Notifications
             await Show(notif, content);
         }
 
+        public static async Task Show(string content, string tag, string group)
+        {
+            var notif = CreateToast(content, tag);
+            notif.Group = group;
+            await Show(notif, content);
+        }
+
+        public static void Push(string content, string tag)
+        {
+            var notif = CreateToast(content, tag);
+            ToastNotificationManager.CreateToastNotifier().Show(notif);
+        }
+
+        public static void Push(string content, string tag, string group)
+        {
+            var notif = CreateToast(content, tag);
+            notif.Group = group;
+            ToastNotificationManager.CreateToastNotifier().Show(notif);
+        }
+
         public static async Task Show(ToastNotification notif, string additionalData = null)
         {
             await ToastNotificationManager.CreateToastNotifier().ShowEnhanced(notif, additionalData);
@@ -73,6 +93,11 @@ namespace UnitTests.Notifications
         public static void Dismiss(string tag)
         {
             ToastNotificationManager.History.Remove(tag);
+        }
+
+        public static void Dismiss(string tag, string group)
+        {
+            ToastNotificationManager.History.Remove(tag, group);
         }
 
         public static async Task Finish()
