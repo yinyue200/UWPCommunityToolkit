@@ -43,13 +43,15 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UnitTests.Notifications.UWP
 EndProject
 Project("{D954291E-2A0B-460D-934E-DC6B0785DB48}") = "Microsoft.Toolkit.Uwp.Notifications.SharedWinRT", "Microsoft.Toolkit.Uwp.Notifications.SharedWinRT\Microsoft.Toolkit.Uwp.Notifications.SharedWinRT.shproj", "{71C5902F-F47C-4F17-BEED-251600BB8BB4}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Microsoft.Toolkit.Uwp.Notifications.DemoChatApp", "Microsoft.Toolkit.Uwp.Notifications.DemoChatApp\Microsoft.Toolkit.Uwp.Notifications.DemoChatApp.csproj", "{9FC09EC9-ACDE-4B83-8371-79D2BF154A90}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "DemoApps", "DemoApps", "{230B7FD3-C77C-4FAC-A76C-FD32CD3FD4BB}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "DemoChatApp", "DemoChatApp", "{DD56614E-EEC3-4CA8-B780-B57BF78FA9A3}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "DemoChatApp", "DemoChatApp", "{F1B453E7-30F5-492D-8D4C-F27F3D8D5F72}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Microsoft.Toolkit.Uwp.Notifications.DemoChatLibrary", "Microsoft.Toolkit.Uwp.Notifications.DemoChatLibrary\Microsoft.Toolkit.Uwp.Notifications.DemoChatLibrary.csproj", "{BD1FC412-CDEC-48AA-8A6A-E67658895C27}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Microsoft.Toolkit.Uwp.DemoChatApp", "Microsoft.Toolkit.Uwp.DemoChatApp\Microsoft.Toolkit.Uwp.DemoChatApp.csproj", "{9FC09EC9-ACDE-4B83-8371-79D2BF154A90}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Microsoft.Toolkit.Uwp.Notifications.DemoChatWinRT", "Microsoft.Toolkit.Uwp.Notifications.DemoChatWinRT\Microsoft.Toolkit.Uwp.Notifications.DemoChatWinRT.csproj", "{274C0E7F-BD68-4E7B-97C0-5E820E7FE1DA}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Microsoft.Toolkit.Uwp.DemoChatLibrary", "Microsoft.Toolkit.Uwp.DemoChatLibrary\Microsoft.Toolkit.Uwp.DemoChatLibrary.csproj", "{BD1FC412-CDEC-48AA-8A6A-E67658895C27}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Microsoft.Toolkit.Uwp.DemoChatWinRTComponent", "Microsoft.Toolkit.Uwp.DemoChatWinRT\Microsoft.Toolkit.Uwp.DemoChatWinRTComponent.csproj", "{274C0E7F-BD68-4E7B-97C0-5E820E7FE1DA}"
 EndProject
 Global
 	GlobalSection(SharedMSBuildProjectFiles) = preSolution
@@ -370,9 +372,9 @@ Global
 		{4DE12890-5423-43F0-91EE-83ACE11C1F8C} = {9333C63A-F64F-4797-82B3-017422668A5D}
 		{BAB1CAF4-C400-4A7F-A987-C576DE63CFFD} = {9333C63A-F64F-4797-82B3-017422668A5D}
 		{71C5902F-F47C-4F17-BEED-251600BB8BB4} = {AC34EA36-5E97-4158-B7A0-3D4BBF1BAA54}
-		{9FC09EC9-ACDE-4B83-8371-79D2BF154A90} = {DD56614E-EEC3-4CA8-B780-B57BF78FA9A3}
-		{DD56614E-EEC3-4CA8-B780-B57BF78FA9A3} = {AC34EA36-5E97-4158-B7A0-3D4BBF1BAA54}
-		{BD1FC412-CDEC-48AA-8A6A-E67658895C27} = {DD56614E-EEC3-4CA8-B780-B57BF78FA9A3}
-		{274C0E7F-BD68-4E7B-97C0-5E820E7FE1DA} = {DD56614E-EEC3-4CA8-B780-B57BF78FA9A3}
+		{F1B453E7-30F5-492D-8D4C-F27F3D8D5F72} = {230B7FD3-C77C-4FAC-A76C-FD32CD3FD4BB}
+		{9FC09EC9-ACDE-4B83-8371-79D2BF154A90} = {F1B453E7-30F5-492D-8D4C-F27F3D8D5F72}
+		{BD1FC412-CDEC-48AA-8A6A-E67658895C27} = {F1B453E7-30F5-492D-8D4C-F27F3D8D5F72}
+		{274C0E7F-BD68-4E7B-97C0-5E820E7FE1DA} = {F1B453E7-30F5-492D-8D4C-F27F3D8D5F72}
 	EndGlobalSection
 EndGlobal
