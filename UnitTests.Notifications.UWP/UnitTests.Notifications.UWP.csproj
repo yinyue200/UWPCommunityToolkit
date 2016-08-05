@@ -102,6 +102,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="ToastHistoryChangeTrackerInvalidStateTests.cs" />
+    <Compile Include="ToastHistoryChangeTrackerNotEnabledTests.cs" />
     <Compile Include="ToastHistoryChangeTrackerTestHelpers.cs" />
     <Compile Include="ToastHistoryChangeTrackerTests.cs" />
     <Compile Include="UnitTestApp.xaml.cs">

@@ -125,7 +125,7 @@ namespace Microsoft.Toolkit.Uwp.Notifications
 
         internal static Task ShowToastNotification(ToastNotifier notifier, ToastNotification notif, string additionalData)
         {
-            return Execute((conn) =>
+            return ExecuteEnhanced((conn) =>
             {
                 // Make sure it has a tag (adds one if doesn't)
                 ToastHistoryChangeDatabase.EnsureHasTag(notif);
@@ -140,27 +140,30 @@ namespace Microsoft.Toolkit.Uwp.Notifications
 
                 // Delete any other existing, since the programmatic add replaces
                 // We check DateAdded to preserve scheduled notifications
-                conn.RunInTransaction(() =>
-                {
-                    conn.Execute(
-                        @"delete from ToastHistoryChangeRecord
-                        where ToastTag = ? and ToastGroup = ? and DateAdded <= ?",
-                        notif.Tag,
-                        notif.Group,
-                        record.DateAdded);
+                conn.Execute(
+                    @"delete from ToastHistoryChangeRecord
+                    where ToastTag = ? and ToastGroup = ? and DateAdded <= ?",
+                    notif.Tag,
+                    notif.Group,
+                    record.DateAdded);
 
-                    // And then insert this
-                    conn.Insert(record);
-
-                    // And then show the toast (if the Show fails, it'll roll back our changes too)
-                    notifier.Show(notif);
-                });
+                // And then insert this
+                conn.Insert(record);
+            }, () =>
+            {
+                notifier.Show(notif);
             });
         }
 
         public static Task AddScheduledToastNotification(ToastNotifier notifier, ScheduledToastNotification notif, string additionalData)
         {
-            return Execute((conn) =>
+            if (!GetIsInGoodState())
+            {
+                notifier.AddToSchedule(notif);
+                return Task.FromResult(true);
+            }
+
+            return ExecuteEnhanced((conn) =>
             {
                 // Make sure it has a tag (adds one if doesn't)
                 ToastHistoryChangeDatabase.EnsureHasTag(notif);
@@ -173,90 +176,164 @@ namespace Microsoft.Toolkit.Uwp.Notifications
                 };
                 PopulateRecord(record, notif, additionalData);
 
-                conn.RunInTransaction(() =>
-                {
-                    conn.Insert(record);
-
-                    // If the add fails, our database changes will be rolled back
-                    notifier.AddToSchedule(notif);
-                });
+                conn.Insert(record);
+            }, () =>
+            {
+                notifier.AddToSchedule(notif);
             });
         }
 
         public static Task Remove(ToastNotificationHistory history, string tag)
         {
-            return Execute((conn) =>
+            return ExecuteEnhanced((conn) =>
             {
-                conn.RunInTransaction(() =>
-                {
-                    conn.Execute($@"delete from ToastHistoryChangeRecord where ToastTag = ? and ToastGroup = '' and DateAdded <= ?", tag, DateTimeOffset.Now);
-
-                    history.Remove(tag);
-                });
+                conn.Execute($@"delete from ToastHistoryChangeRecord where ToastTag = ? and ToastGroup = '' and DateAdded <= ?", tag, DateTimeOffset.Now);
+            }, () =>
+            {
+                history.Remove(tag);
             });
+        }
+
+        private static void ExecuteOriginalAction(Action action)
+        {
+            try
+            {
+                action();
+            }
+            catch (Exception ex)
+            {
+                // We wrap this in a custom exception, so that we can know if the
+                // original action failed compared to something else failing.
+                throw new ToastHistoryChangeDatabaseOriginalActionException(ex);
+            }
+        }
+
+        private static async Task ExecuteEnhanced(Action<SQLiteConnection> databaseAction, Action originalAction)
+        {
+            // We wrap our original action so that if it throws, we can
+            // identify that it specifically threw, whereas if anything else
+            // throws, we should silently continue
+            var copiedOriginalAction = originalAction;
+            originalAction = delegate { ExecuteOriginalAction(copiedOriginalAction); };
+
+            try
+            {
+                // If we're not in a good state, we simply stop executing
+                if (!GetIsInGoodState())
+                {
+                    // But we need to execute the original action
+                    originalAction();
+                    return;
+                }
+
+                await Task.Run(async delegate
+                {
+                    // We'll just always use a write lock, since 90% of the time we're always writing
+                    // (even when reading, we'll be potentially creating the database for the first time)
+                    using (Locks.LockForWrite())
+                    {
+                        // We'll also check after we've established lock
+                        if (!GetIsInGoodState())
+                        {
+                            // But we need to execute the original action
+                            // before we stop.
+                            originalAction();
+                            return;
+                        }
+
+                        // Initialize settings
+                        await ToastHistoryChangeTrackerConfiguration.InitializeAsync();
+
+                        using (var conn = CreateConnection())
+                        {
+                            // Run in a transaction so that if the original action fails,
+                            // we will roll back the changes to the database
+                            conn.RunInTransaction(() =>
+                            {
+                                // Execute the database action
+                                databaseAction(conn);
+
+                                // And then execute the original action
+                                originalAction();
+                            });
+                        }
+                    }
+                });
+            }
+
+            // If the original action failed, we throw this exception,
+            // which means that nothing's wrong with the data state itself.
+            // This exception should be surfaced to the developer.
+            catch (ToastHistoryChangeDatabaseOriginalActionException ex)
+            {
+                throw ex.OriginalException;
+            }
+
+            // Otherwise something else failed, which means we're in a bad
+            // state. Regardless, we need to execute the original action
+            // and then we silently fail (they'll know something's wrong when
+            // they read changes).
+            catch
+            {
+                try
+                {
+                    SetIsInGoodState(false);
+                }
+                catch { }
+
+                originalAction();
+            }
         }
 
         public static Task Remove(ToastNotificationHistory history, string tag, string group)
         {
-            return Execute((conn) =>
+            return ExecuteEnhanced((conn) =>
             {
-                conn.RunInTransaction(() =>
-                {
-                    conn.Execute($@"delete from ToastHistoryChangeRecord where ToastTag = ? and ToastGroup = ? and DateAdded <= ?", tag, group, DateTimeOffset.Now);
-
-                    history.Remove(tag, group);
-                });
+                conn.Execute($@"delete from ToastHistoryChangeRecord where ToastTag = ? and ToastGroup = ? and DateAdded <= ?", tag, group, DateTimeOffset.Now);
+            }, () =>
+            {
+                history.Remove(tag, group);
             });
         }
 
         public static Task RemoveGroup(ToastNotificationHistory history, string group)
         {
-            return Execute((conn) =>
+            return ExecuteEnhanced((conn) =>
             {
-                conn.RunInTransaction(() =>
-                {
-                    conn.Execute($@"delete from ToastHistoryChangeRecord where ToastGroup = ? and DateAdded <= ?", group, DateTimeOffset.Now);
-
-                    history.RemoveGroup(group);
-                });
+                conn.Execute($@"delete from ToastHistoryChangeRecord where ToastGroup = ? and DateAdded <= ?", group, DateTimeOffset.Now);
+            }, () =>
+            {
+                history.RemoveGroup(group);
             });
         }
 
         public static Task Clear(ToastNotificationHistory history)
         {
-            return Execute((conn) =>
+            return ExecuteEnhanced((conn) =>
             {
-                conn.RunInTransaction(() =>
-                {
-                    conn.Execute("delete from ToastHistoryChangeRecord where DateAdded <= ?", DateTimeOffset.Now);
-
-                    history.Clear();
-                });
+                conn.Execute("delete from ToastHistoryChangeRecord where DateAdded <= ?", DateTimeOffset.Now);
+            }, () =>
+            {
+                history.Clear();
             });
         }
 
         public static Task RemoveScheduled(ToastNotifier notifier, ScheduledToastNotification notif)
         {
-            return Execute((conn) =>
+            return ExecuteEnhanced((conn) =>
             {
                 // If notif hasn't appeared yet, we'll remove it
                 if (notif.DeliveryTime > DateTimeOffset.Now)
                 {
-                    conn.RunInTransaction(() =>
-                    {
-                        conn.Execute(
-                            $"delete from ToastHistoryChangeRecord where ToastTag = ? and ToastGroup = ? and DateAdded = ?",
-                            notif.Tag,
-                            notif.Group,
-                            notif.DeliveryTime);
-
-                        notifier.RemoveFromSchedule(notif);
-                    });
+                    conn.Execute(
+                        $"delete from ToastHistoryChangeRecord where ToastTag = ? and ToastGroup = ? and DateAdded = ?",
+                        notif.Tag,
+                        notif.Group,
+                        notif.DeliveryTime);
                 }
-                else
-                {
-                    notifier.RemoveFromSchedule(notif);
-                }
+            }, () =>
+            {
+                notifier.RemoveFromSchedule(notif);
             });
         }
 

@@ -115,5 +115,10 @@ namespace UnitTests.Notifications
             Assert.IsTrue(value >= start, $"value {value} wasn't greater than start {start}");
             Assert.IsTrue(value <= end, $"value {value} wasn't less than end {end}");
         }
+
+        public static IReadOnlyList<ToastNotification> GetHistory()
+        {
+            return ToastNotificationManager.History.GetHistory();
+        }
     }
 }
