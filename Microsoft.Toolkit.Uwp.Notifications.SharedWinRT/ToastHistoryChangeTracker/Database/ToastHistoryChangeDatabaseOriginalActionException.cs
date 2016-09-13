@@ -4,7 +4,7 @@ using System.Text;
 
 namespace Microsoft.Toolkit.Uwp.Notifications
 {
-    public class ToastHistoryChangeDatabaseOriginalActionException : Exception
+    internal class ToastHistoryChangeDatabaseOriginalActionException : Exception
     {
         public Exception OriginalException { get; private set; }
 

@@ -10,8 +10,8 @@ namespace Microsoft.Toolkit.Uwp.Notifications
     /// <summary>
     /// Attribute for specifying default behaviors to the <see cref="ToastHistoryChangeTracker"/>.
     /// </summary>
-    [AttributeUsage(AttributeTargets.Assembly, AllowMultiple = false)]
-    public sealed class ToastHistoryChangeTrackerAttribute : Attribute
+    //[AttributeUsage(AttributeTargets.Assembly, AllowMultiple = false)]
+    public sealed class ToastHistoryChangeTrackerAttribute
     {
         /// <summary>
         /// Initializes various settings for the <see cref="ToastHistoryChangeTracker"/>.
@@ -20,7 +20,7 @@ namespace Microsoft.Toolkit.Uwp.Notifications
         /// original Toast launch argument from the Toast XML payload.</param>
         /// <param name="includePayload">Specifies whether the tracker should store the original
         /// Toast XML payload.</param>
-        public ToastHistoryChangeTrackerAttribute(bool includePayloadArguments = false, bool includePayload = false)
+        public ToastHistoryChangeTrackerAttribute(bool includePayloadArguments, bool includePayload)
         {
             IncludePayloadArguments = includePayloadArguments;
             IncludePayload = includePayload;
@@ -45,41 +45,42 @@ namespace Microsoft.Toolkit.Uwp.Notifications
         public static ToastHistoryChangeTrackerAttribute Current
         {
             get { return _current; }
+            set { _current = value; }
         }
 
         public static async Task InitializeAsync()
         {
             if (_current == null)
             {
-                try
-                {
-                    // In order to obtain the parent app's AssemblyInfo, need to get the parent's assembly
-                    // AppDomain doesn't exist in WinRT, so we do the following
-                    // https://gist.github.com/grumpydev/1234767
-                    var folder = Windows.ApplicationModel.Package.Current.InstalledLocation;
+                //try
+                //{
+                //    // In order to obtain the parent app's AssemblyInfo, need to get the parent's assembly
+                //    // AppDomain doesn't exist in WinRT, so we do the following
+                //    // https://gist.github.com/grumpydev/1234767
+                //    var folder = Windows.ApplicationModel.Package.Current.InstalledLocation;
 
-                    var queryResult = folder.CreateFileQueryWithOptions(new Windows.Storage.Search.QueryOptions()
-                    {
-                        ApplicationSearchFilter = "ext:.exe",
-                        FolderDepth = Windows.Storage.Search.FolderDepth.Shallow
-                    });
-                    var file = (await queryResult.GetFilesAsync(0, 1)).FirstOrDefault();
-                    if (file != null)
-                    {
-                        Assembly assembly = Assembly.Load(new AssemblyName() { Name = System.IO.Path.GetFileNameWithoutExtension(file.Name) });
+                //    var queryResult = folder.CreateFileQueryWithOptions(new Windows.Storage.Search.QueryOptions()
+                //    {
+                //        ApplicationSearchFilter = "ext:.exe",
+                //        FolderDepth = Windows.Storage.Search.FolderDepth.Shallow
+                //    });
+                //    var file = (await queryResult.GetFilesAsync(0, 1)).FirstOrDefault();
+                //    if (file != null)
+                //    {
+                //        Assembly assembly = Assembly.Load(new AssemblyName() { Name = System.IO.Path.GetFileNameWithoutExtension(file.Name) });
 
-                        // Then we need to get the custom attribute from AssemblyInfo.cs
-                        // https://social.msdn.microsoft.com/Forums/vstudio/en-US/14ee99ed-379b-4646-8e3e-bb747312e608/adding-new-values-to-assemblyinfocs
-                        var attr = assembly.GetCustomAttribute<ToastHistoryChangeTrackerAttribute>();
-                        _current = attr;
-                    }
-                }
-                catch { }
+                //        // Then we need to get the custom attribute from AssemblyInfo.cs
+                //        // https://social.msdn.microsoft.com/Forums/vstudio/en-US/14ee99ed-379b-4646-8e3e-bb747312e608/adding-new-values-to-assemblyinfocs
+                //        var attr = assembly.GetCustomAttribute<ToastHistoryChangeTrackerAttribute>();
+                //        _current = attr;
+                //    }
+                //}
+                //catch { }
 
                 if (_current == null)
                 {
                     // If there was an exception, or no attribute provided by dev, we use default
-                    _current = new ToastHistoryChangeTrackerAttribute();
+                    _current = new ToastHistoryChangeTrackerAttribute(false, false);
                 }
             }
         }

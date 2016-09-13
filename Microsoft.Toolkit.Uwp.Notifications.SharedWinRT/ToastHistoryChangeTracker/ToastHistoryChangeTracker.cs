@@ -14,7 +14,7 @@ namespace Microsoft.Toolkit.Uwp.Notifications
         /// <summary>
         /// Gets a reference to the current <see cref="ToastHistoryChangeTracker"/>.
         /// </summary>
-        public static readonly ToastHistoryChangeTracker Current = new ToastHistoryChangeTracker();
+        public static ToastHistoryChangeTracker Current { get; private set; } = new ToastHistoryChangeTracker();
 
         /// <summary>
         /// Call this method to enable change tracking.
