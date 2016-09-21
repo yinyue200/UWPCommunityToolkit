@@ -11,12 +11,12 @@
     <AssemblyName>Microsoft.Toolkit.Uwp.DemoChatApp</AssemblyName>
     <DefaultLanguage>en-US</DefaultLanguage>
     <TargetPlatformIdentifier>UAP</TargetPlatformIdentifier>
-    <TargetPlatformVersion>10.0.10586.0</TargetPlatformVersion>
-    <TargetPlatformMinVersion>10.0.10240.0</TargetPlatformMinVersion>
+    <TargetPlatformVersion>10.0.14393.0</TargetPlatformVersion>
+    <TargetPlatformMinVersion>10.0.14393.0</TargetPlatformMinVersion>
     <MinimumVisualStudioVersion>14</MinimumVisualStudioVersion>
     <FileAlignment>512</FileAlignment>
     <ProjectTypeGuids>{A5A43C5B-DE2A-4C0C-9213-0A381AF9435A};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
-    <PackageCertificateKeyFile>Microsoft.Toolkit.Uwp.Notifications.DemoChatApp_TemporaryKey.pfx</PackageCertificateKeyFile>
+    <PackageCertificateKeyFile>Microsoft.Toolkit.Uwp.DemoChatApp_TemporaryKey.pfx</PackageCertificateKeyFile>
     <AppxAutoIncrementPackageRevision>True</AppxAutoIncrementPackageRevision>
     <AppxBundle>Always</AppxBundle>
     <AppxBundlePlatforms>x86|arm</AppxBundlePlatforms>
@@ -92,13 +92,18 @@
   </PropertyGroup>
   <ItemGroup>
     <!-- A reference to the entire .Net Framework and Windows SDK are automatically included -->
+    <None Include="Microsoft.Toolkit.Uwp.DemoChatApp_TemporaryKey.pfx" />
     <None Include="project.json" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="App.xaml.cs">
       <DependentUpon>App.xaml</DependentUpon>
     </Compile>
+    <Compile Include="Common\BindableBase.cs" />
     <Compile Include="Converters\HasUnreadToForegroundConverter.cs" />
+    <Compile Include="DataLayer\MessageGenerator.cs" />
+    <Compile Include="Helpers\TileHelper.cs" />
+    <Compile Include="Helpers\WindowHelper.cs" />
     <Compile Include="MainPage.xaml.cs">
       <DependentUpon>MainPage.xaml</DependentUpon>
     </Compile>
@@ -106,12 +111,15 @@
     <Compile Include="ViewConversationPage.xaml.cs">
       <DependentUpon>ViewConversationPage.xaml</DependentUpon>
     </Compile>
+    <Compile Include="ViewLayer\ViewItemConversation.cs" />
+    <Compile Include="ViewLayer\ViewItemMessage.cs" />
+    <Compile Include="ViewLayer\ViewItemPerson.cs" />
+    <Compile Include="ViewModel\MainViewModel.cs" />
   </ItemGroup>
   <ItemGroup>
     <AppxManifest Include="Package.appxmanifest">
       <SubType>Designer</SubType>
     </AppxManifest>
-    <None Include="Microsoft.Toolkit.Uwp.DemoChatApp_TemporaryKey.pfx" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="Properties\Default.rd.xml" />
@@ -138,14 +146,6 @@
     </Page>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\Microsoft.Toolkit.Uwp.DemoChatLibrary\Microsoft.Toolkit.Uwp.DemoChatLibrary.csproj">
-      <Project>{bd1fc412-cdec-48aa-8a6a-e67658895c27}</Project>
-      <Name>Microsoft.Toolkit.Uwp.DemoChatLibrary</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\Microsoft.Toolkit.Uwp.DemoChatWinRT\Microsoft.Toolkit.Uwp.DemoChatWinRTComponent.csproj">
-      <Project>{274c0e7f-bd68-4e7b-97c0-5e820e7fe1da}</Project>
-      <Name>Microsoft.Toolkit.Uwp.DemoChatWinRTComponent</Name>
-    </ProjectReference>
     <ProjectReference Include="..\Microsoft.Toolkit.Uwp.Notifications.UWP\Microsoft.Toolkit.Uwp.Notifications.UWP.csproj">
       <Project>{FB381278-F4AD-4703-A12A-C43EE0B231BD}</Project>
       <Name>Microsoft.Toolkit.Uwp.Notifications.UWP</Name>

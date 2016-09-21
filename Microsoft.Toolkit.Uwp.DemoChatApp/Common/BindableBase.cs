@@ -6,7 +6,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Microsoft.Toolkit.Uwp.DemoChatLibrary.Common
+namespace Microsoft.Toolkit.Uwp.DemoChatApp.Common
 {
     public abstract class BindableBase : INotifyPropertyChanged
     {

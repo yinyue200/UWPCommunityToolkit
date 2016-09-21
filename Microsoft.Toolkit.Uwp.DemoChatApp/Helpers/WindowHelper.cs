@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Microsoft.Toolkit.Uwp.DemoChatLibrary.Helpers
+namespace Microsoft.Toolkit.Uwp.DemoChatApp.Helpers
 {
     public static class WindowHelper
     {

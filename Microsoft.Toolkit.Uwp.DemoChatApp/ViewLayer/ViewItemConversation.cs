@@ -1,4 +1,4 @@
-﻿using Microsoft.Toolkit.Uwp.DemoChatLibrary.Common;
+﻿using Microsoft.Toolkit.Uwp.DemoChatApp.Common;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -6,7 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Microsoft.Toolkit.Uwp.DemoChatLibrary.ViewLayer
+namespace Microsoft.Toolkit.Uwp.DemoChatApp.ViewLayer
 {
     public class ViewItemConversation : BindableBase
     {

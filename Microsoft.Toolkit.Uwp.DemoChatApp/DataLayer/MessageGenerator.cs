@@ -5,7 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Windows.Storage;
 
-namespace Microsoft.Toolkit.Uwp.DemoChatLibrary.DataLayer
+namespace Microsoft.Toolkit.Uwp.DemoChatApp.DataLayer
 {
     public static class MessageGenerator
     {

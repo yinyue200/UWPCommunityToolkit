@@ -1,6 +1,6 @@
-﻿using Microsoft.Toolkit.Uwp.DemoChatLibrary.DataLayer;
-using Microsoft.Toolkit.Uwp.DemoChatLibrary.Helpers;
-using Microsoft.Toolkit.Uwp.DemoChatLibrary.ViewLayer;
+﻿using Microsoft.Toolkit.Uwp.DemoChatApp.DataLayer;
+using Microsoft.Toolkit.Uwp.DemoChatApp.Helpers;
+using Microsoft.Toolkit.Uwp.DemoChatApp.ViewLayer;
 using Microsoft.Toolkit.Uwp.Notifications;
 using System;
 using System.Collections.Generic;
@@ -12,7 +12,7 @@ using Windows.UI.Core;
 using Windows.UI.Notifications;
 using Windows.UI.Xaml;
 
-namespace Microsoft.Toolkit.Uwp.DemoChatLibrary.ViewModel
+namespace Microsoft.Toolkit.Uwp.DemoChatApp.ViewModel
 {
     public class MainViewModel
     {

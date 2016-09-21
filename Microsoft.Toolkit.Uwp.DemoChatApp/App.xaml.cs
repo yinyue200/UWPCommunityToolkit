@@ -1,6 +1,6 @@
 ﻿using Microsoft.Toolkit.Uwp.Notifications;
-using Microsoft.Toolkit.Uwp.DemoChatLibrary.Helpers;
-using Microsoft.Toolkit.Uwp.DemoChatLibrary.ViewModel;
+using Microsoft.Toolkit.Uwp.DemoChatApp.Helpers;
+using Microsoft.Toolkit.Uwp.DemoChatApp.ViewModel;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -28,6 +28,8 @@ namespace Microsoft.Toolkit.Uwp.DemoChatApp
     /// </summary>
     sealed partial class App : Application
     {
+        private const string BACKGROUND_TASK_TOAST_HISTORY_CHANGE = "ToastHistoryChange";
+
         public static MainViewModel ViewModel;
 
         /// <summary>
@@ -75,12 +77,11 @@ namespace Microsoft.Toolkit.Uwp.DemoChatApp
 
                 await BackgroundExecutionManager.RequestAccessAsync();
 
-                if (!BackgroundTaskRegistration.AllTasks.Any(i => i.Value.Name.Equals("ToastHistoryChange")))
+                if (!BackgroundTaskRegistration.AllTasks.Any(i => i.Value.Name.Equals(BACKGROUND_TASK_TOAST_HISTORY_CHANGE)))
                 {
                     BackgroundTaskBuilder builder = new BackgroundTaskBuilder()
                     {
-                        Name = "ToastHistoryChange",
-                        TaskEntryPoint = "Microsoft.Toolkit.Uwp.DemoChatWinRTComponent.ToastHistoryChangeBackgroundTask"
+                        Name = BACKGROUND_TASK_TOAST_HISTORY_CHANGE
                     };
                     builder.SetTrigger(new ToastNotificationHistoryChangedTrigger());
                     builder.Register();
@@ -184,6 +185,62 @@ namespace Microsoft.Toolkit.Uwp.DemoChatApp
             var deferral = e.SuspendingOperation.GetDeferral();
             //TODO: Save application state and stop any background activity
             deferral.Complete();
+        }
+
+        protected override async void OnBackgroundActivated(BackgroundActivatedEventArgs args)
+        {
+            var deferral = args.TaskInstance.GetDeferral();
+
+            switch (args.TaskInstance.Task.Name)
+            {
+                case BACKGROUND_TASK_TOAST_HISTORY_CHANGE:
+                    await HandleToastChangeAsync();
+                    break;
+            }
+
+            deferral.Complete();
+        }
+
+        private async Task HandleToastChangeAsync()
+        {
+            var viewModel = MainViewModel.Current;
+            if (viewModel == null)
+            {
+                // In a real app, we would actually load the view model
+                // but in this app, we only execute while the app is open
+                return;
+            }
+
+            try
+            {
+                var reader = await ToastHistoryChangeTracker.Current.GetChangeReaderAsync();
+                var changes = await reader.ReadChangesAsync();
+                bool madeChanges = false;
+
+                foreach (var c in changes)
+                {
+                    if (c.ChangeType == ToastHistoryChangeType.Removed && c.Group.Equals("conversations"))
+                    {
+                        int convId = int.Parse(c.Tag);
+
+                        var conv = viewModel.Conversations.FirstOrDefault(i => i.Id == convId);
+                        if (conv != null)
+                        {
+                            conv.MarkNotificationDismissed();
+                            madeChanges = true;
+                        }
+                    }
+                }
+
+                // In a real app, we would also want to save changes to our view model
+                await reader.AcceptChangesAsync();
+
+                if (madeChanges)
+                {
+                    TileHelper.Update();
+                }
+            }
+            catch { }
         }
     }
 }

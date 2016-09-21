@@ -1,4 +1,4 @@
-﻿using Microsoft.Toolkit.Uwp.DemoChatLibrary.ViewModel;
+﻿using Microsoft.Toolkit.Uwp.DemoChatApp.ViewModel;
 using Microsoft.Toolkit.Uwp.Notifications;
 using System;
 using System.Collections.Generic;
@@ -7,7 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Windows.UI.Notifications;
 
-namespace Microsoft.Toolkit.Uwp.DemoChatLibrary.Helpers
+namespace Microsoft.Toolkit.Uwp.DemoChatApp.Helpers
 {
     public class TileHelper
     {
@@ -35,6 +35,7 @@ namespace Microsoft.Toolkit.Uwp.DemoChatLibrary.Helpers
                     {
                         contentAdaptive.Children.Add(new AdaptiveText()
                         {
+                            // TODO: Need to trim content to ensure we don't exceed the 5 KB limit
                             Text = m.Content,
                             HintWrap = true,
                             HintStyle = AdaptiveTextStyle.CaptionSubtle
@@ -52,6 +53,7 @@ namespace Microsoft.Toolkit.Uwp.DemoChatLibrary.Helpers
                         }
                     };
                     TileUpdateManager.CreateTileUpdaterForApplication().Update(new TileNotification(content.GetXml()));
+                    System.Diagnostics.Debug.WriteLine("Tile: " + messagesToNotify.First().Content);
                     return;
                 }
             }

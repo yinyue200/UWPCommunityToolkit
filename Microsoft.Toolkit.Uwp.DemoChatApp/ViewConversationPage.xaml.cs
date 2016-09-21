@@ -1,5 +1,5 @@
-﻿using Microsoft.Toolkit.Uwp.DemoChatLibrary.ViewLayer;
-using Microsoft.Toolkit.Uwp.DemoChatLibrary.ViewModel;
+﻿using Microsoft.Toolkit.Uwp.DemoChatApp.ViewLayer;
+using Microsoft.Toolkit.Uwp.DemoChatApp.ViewModel;
 using System;
 using System.Collections.Generic;
 using System.IO;
