@@ -1,11 +1,10 @@
-﻿using SQLite.Net;
-using SQLite.Net.Attributes;
-using SQLite.Net.Platform.WinRT;
+﻿using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.Serialization;
 using System.Text;
 using System.Threading.Tasks;
 using Windows.Data.Xml.Dom;
@@ -14,10 +13,21 @@ using Windows.UI.Notifications;
 
 namespace Microsoft.Toolkit.Uwp.Notifications
 {
-    internal static class ToastHistoryChangeDatabase
+    [DataContract]
+    internal class ToastHistoryChangeDatabase
     {
-        private const string DATABASE_FILE_NAME = "ToastHistoryChangeDatabase.db";
+        private const string DATABASE_FILE_NAME = "ToastHistoryChangeDatabase.dat";
+        private const string DATABASE_TEMP_FILE_NAME = "ToastHistoryChangeDatabaseTemp.dat";
         private const string IS_IN_GOOD_STATE_SETTINGS_KEY = "ToastHistoryChangeIsInGoodState";
+
+        public List<ToastHistoryChangeRecord> Records { get; set; } = new List<ToastHistoryChangeRecord>();
+
+        private ToastHistoryChangeDatabase() { }
+
+        private ToastHistoryChangeDatabase(bool isCorrupt)
+        {
+            // TODO
+        }
 
         private static bool GetIsInGoodState()
         {
@@ -39,8 +49,8 @@ namespace Microsoft.Toolkit.Uwp.Notifications
         /// <summary>
         /// Returns true if the notification has a tag (which means we can track it)
         /// </summary>
-        /// <param name="notif"></param>
-        /// <returns></returns>
+        /// <param name="notif">The notification to check.</param>
+        /// <returns>Boolean representing whether the notification has a tag.</returns>
         internal static bool SupportsTracking(ToastNotification notif)
         {
             return notif.Tag.Length > 0;
@@ -49,13 +59,17 @@ namespace Microsoft.Toolkit.Uwp.Notifications
         internal static void EnsureHasTag(ToastNotification notif)
         {
             if (notif.Tag.Length == 0)
+            {
                 notif.Tag = GetAutoTag();
+            }
         }
 
         internal static void EnsureHasTag(ScheduledToastNotification notif)
         {
             if (notif.Tag.Length == 0)
+            {
                 notif.Tag = GetAutoTag();
+            }
         }
 
         private static string GetAutoTag()
@@ -125,7 +139,8 @@ namespace Microsoft.Toolkit.Uwp.Notifications
 
         internal static Task ShowToastNotification(ToastNotifier notifier, ToastNotification notif, string additionalData)
         {
-            return ExecuteEnhanced((conn) =>
+            return ExecuteEnhanced(
+                (db) =>
             {
                 // Make sure it has a tag (adds one if doesn't)
                 ToastHistoryChangeDatabase.EnsureHasTag(notif);
@@ -140,15 +155,16 @@ namespace Microsoft.Toolkit.Uwp.Notifications
 
                 // Delete any other existing, since the programmatic add replaces
                 // We check DateAdded to preserve scheduled notifications
-                conn.Execute(
-                    @"delete from ToastHistoryChangeRecord
-                    where ToastTag = ? and ToastGroup = ? and DateAdded <= ?",
-                    notif.Tag,
-                    notif.Group,
-                    record.DateAdded);
+                db.Records.RemoveAll(
+                    r =>
+                    r.ToastTag.Equals(notif.Tag)
+                    && r.ToastGroup.Equals(notif.Group)
+                    && r.DateAdded <= record.DateAdded);
 
                 // And then insert this
-                conn.Insert(record);
+                db.Records.Add(record);
+
+                db.SaveDatabaseWithoutWaiting();
             }, () =>
             {
                 notifier.Show(notif);
@@ -163,7 +179,8 @@ namespace Microsoft.Toolkit.Uwp.Notifications
                 return Task.FromResult(true);
             }
 
-            return ExecuteEnhanced((conn) =>
+            return ExecuteEnhanced(
+                (db) =>
             {
                 // Make sure it has a tag (adds one if doesn't)
                 ToastHistoryChangeDatabase.EnsureHasTag(notif);
@@ -176,7 +193,9 @@ namespace Microsoft.Toolkit.Uwp.Notifications
                 };
                 PopulateRecord(record, notif, additionalData);
 
-                conn.Insert(record);
+                db.Records.Add(record);
+
+                db.SaveDatabaseWithoutWaiting();
             }, () =>
             {
                 notifier.AddToSchedule(notif);
@@ -185,9 +204,19 @@ namespace Microsoft.Toolkit.Uwp.Notifications
 
         public static Task Remove(ToastNotificationHistory history, string tag)
         {
-            return ExecuteEnhanced((conn) =>
+            return ExecuteEnhanced(
+                (db) =>
             {
-                conn.Execute($@"delete from ToastHistoryChangeRecord where ToastTag = ? and ToastGroup = '' and DateAdded <= ?", tag, DateTimeOffset.Now);
+                bool removed = db.Records.RemoveAll(
+                    r =>
+                    r.ToastTag.Equals(tag)
+                    && r.ToastGroup.Length == 0
+                    && r.DateAdded <= DateTimeOffset.Now) > 0;
+
+                if (removed)
+                {
+                    db.SaveDatabaseWithoutWaiting();
+                }
             }, () =>
             {
                 history.Remove(tag);
@@ -208,7 +237,7 @@ namespace Microsoft.Toolkit.Uwp.Notifications
             }
         }
 
-        private static async Task ExecuteEnhanced(Action<SQLiteConnection> databaseAction, Action originalAction)
+        private static async Task ExecuteEnhanced(Action<ToastHistoryChangeDatabase> databaseAction, Action originalAction)
         {
             // We wrap our original action so that if it throws, we can
             // identify that it specifically threw, whereas if anything else
@@ -230,7 +259,7 @@ namespace Microsoft.Toolkit.Uwp.Notifications
                 {
                     // We'll just always use a write lock, since 90% of the time we're always writing
                     // (even when reading, we'll be potentially creating the database for the first time)
-                    using (Locks.LockForWrite())
+                    using (await Locks.LockAsync())
                     {
                         // We'll also check after we've established lock
                         if (!GetIsInGoodState())
@@ -244,19 +273,13 @@ namespace Microsoft.Toolkit.Uwp.Notifications
                         // Initialize settings
                         await ToastHistoryChangeTrackerConfiguration.InitializeAsync();
 
-                        using (var conn = CreateConnection())
-                        {
-                            // Run in a transaction so that if the original action fails,
-                            // we will roll back the changes to the database
-                            conn.RunInTransaction(() =>
-                            {
-                                // Execute the database action
-                                databaseAction(conn);
+                        var db = await GetDatabaseAsync();
 
-                                // And then execute the original action
-                                originalAction();
-                            });
-                        }
+                        // Execute the database action
+                        databaseAction(db);
+
+                        // And then execute the original action
+                        originalAction();
                     }
                 });
             }
@@ -287,9 +310,19 @@ namespace Microsoft.Toolkit.Uwp.Notifications
 
         public static Task Remove(ToastNotificationHistory history, string tag, string group)
         {
-            return ExecuteEnhanced((conn) =>
+            return ExecuteEnhanced(
+                (db) =>
             {
-                conn.Execute($@"delete from ToastHistoryChangeRecord where ToastTag = ? and ToastGroup = ? and DateAdded <= ?", tag, group, DateTimeOffset.Now);
+                bool changed = db.Records.RemoveAll(
+                    r =>
+                    object.Equals(r.ToastTag, tag)
+                    && object.Equals(r.ToastGroup, group)
+                    && r.DateAdded <= DateTimeOffset.Now) > 0;
+
+                if (changed)
+                {
+                    db.SaveDatabaseWithoutWaiting();
+                }
             }, () =>
             {
                 history.Remove(tag, group);
@@ -298,9 +331,18 @@ namespace Microsoft.Toolkit.Uwp.Notifications
 
         public static Task RemoveGroup(ToastNotificationHistory history, string group)
         {
-            return ExecuteEnhanced((conn) =>
+            return ExecuteEnhanced(
+                (db) =>
             {
-                conn.Execute($@"delete from ToastHistoryChangeRecord where ToastGroup = ? and DateAdded <= ?", group, DateTimeOffset.Now);
+                bool changed = db.Records.RemoveAll(
+                    r =>
+                    object.Equals(r.ToastGroup, group)
+                    && r.DateAdded <= DateTime.Now) > 0;
+
+                if (changed)
+                {
+                    db.SaveDatabaseWithoutWaiting();
+                }
             }, () =>
             {
                 history.RemoveGroup(group);
@@ -309,9 +351,15 @@ namespace Microsoft.Toolkit.Uwp.Notifications
 
         public static Task Clear(ToastNotificationHistory history)
         {
-            return ExecuteEnhanced((conn) =>
+            return ExecuteEnhanced(
+                (db) =>
             {
-                conn.Execute("delete from ToastHistoryChangeRecord where DateAdded <= ?", DateTimeOffset.Now);
+                bool changed = db.Records.RemoveAll(r => r.DateAdded <= DateTimeOffset.Now) > 0;
+
+                if (changed)
+                {
+                    db.SaveDatabaseWithoutWaiting();
+                }
             }, () =>
             {
                 history.Clear();
@@ -320,16 +368,22 @@ namespace Microsoft.Toolkit.Uwp.Notifications
 
         public static Task RemoveScheduled(ToastNotifier notifier, ScheduledToastNotification notif)
         {
-            return ExecuteEnhanced((conn) =>
+            return ExecuteEnhanced(
+                (db) =>
             {
                 // If notif hasn't appeared yet, we'll remove it
                 if (notif.DeliveryTime > DateTimeOffset.Now)
                 {
-                    conn.Execute(
-                        $"delete from ToastHistoryChangeRecord where ToastTag = ? and ToastGroup = ? and DateAdded = ?",
-                        notif.Tag,
-                        notif.Group,
-                        notif.DeliveryTime);
+                    bool changed = db.Records.RemoveAll(
+                        r =>
+                        object.Equals(r.ToastTag, notif.Tag)
+                        && object.Equals(r.ToastGroup, notif.Group)
+                        && r.DateAdded <= notif.DeliveryTime) > 0;
+
+                    if (changed)
+                    {
+                        db.SaveDatabaseWithoutWaiting();
+                    }
                 }
             }, () =>
             {
@@ -337,48 +391,165 @@ namespace Microsoft.Toolkit.Uwp.Notifications
             });
         }
 
-        private static SQLiteConnection CreateConnection(bool enabling = false)
+        private static object _lock = new object();
+        private static Task<ToastHistoryChangeDatabase> _getDatabaseTask;
+        private static Task<ToastHistoryChangeDatabase> GetDatabaseAsync()
         {
-            SQLiteConnection conn = null;
-
-            try
+            lock (_lock)
             {
-                conn = new SQLiteConnection(
-
-                    // Provide the platform (WinRT)
-                    sqlitePlatform: new SQLitePlatformWinRT(),
-
-                    // Provide the full path where you want the database stored
-                    databasePath: Path.Combine(ApplicationData.Current.LocalFolder.Path, DATABASE_FILE_NAME)
-
-                    );
-
-                // Ensure the table exists in all cases except enabling case
-                // This will make sure that if the database was randomly deleted,
-                // we don't silently continue unaware that the database was deleted
-                if (!enabling)
+                if (_getDatabaseTask != null)
                 {
-                    conn.ExecuteScalar<int>("select count(*) from ToastHistoryChangeRecord");
+                    return _getDatabaseTask;
                 }
 
-                // Creates table (if already exists, does nothing)
-                conn.CreateTable<ToastHistoryChangeRecord>();
+                _getDatabaseTask = CreateGetDatabaseTask();
+                return _getDatabaseTask;
+            }
+        }
+
+        private static async Task<ToastHistoryChangeDatabase> CreateGetDatabaseTask()
+        {
+            try
+            {
+                StorageFile file = await ApplicationData.Current.LocalCacheFolder.GetFileAsync(DATABASE_FILE_NAME);
+                using (var stream = await file.OpenStreamForReadAsync())
+                {
+                    using (var reader = new StreamReader(stream))
+                    {
+                        using (var jsonReader = new JsonTextReader(reader))
+                        {
+                            return GetSerializer().Deserialize<ToastHistoryChangeDatabase>(jsonReader);
+                        }
+                    }
+                }
+            }
+            catch (FileNotFoundException)
+            {
+                return new ToastHistoryChangeDatabase();
             }
             catch
             {
-                if (conn != null)
+                // Corrupt, etc
+                return new Notifications.ToastHistoryChangeDatabase(isCorrupt: true);
+            }
+        }
+
+        private static ToastHistoryChangeDatabase GetCurrDatabase()
+        {
+            return _getDatabaseTask?.Result;
+        }
+
+        private void SaveDatabaseWithoutWaiting()
+        {
+            var dontWait = SaveDatabaseAsync();
+        }
+
+        private static Task _currSaveTask;
+        private bool _needsAnotherSave;
+        private Task SaveDatabaseAsync()
+        {
+            lock (_lock)
+            {
+                if (HasBeenDisposed())
                 {
-                    conn.Dispose();
+                    // If database has changed, we stop save operations on this database.
+                    // This occurs when the database has been deleted.
+                    return Task.FromResult(true);
+                }
+
+                if (_currSaveTask != null)
+                {
+                    _needsAnotherSave = true;
+                    return _currSaveTask;
+                }
+
+                _currSaveTask = CreateSaveDatabaseTask();
+                return _currSaveTask;
+            }
+        }
+
+        public static Task SavingTask
+        {
+            get
+            {
+                var task = _currSaveTask;
+                if (task != null)
+                {
+                    return task;
+                }
+
+                return Task.FromResult(true);
+            }
+        }
+
+        private bool HasBeenDisposed()
+        {
+            return this != GetCurrDatabase();
+        }
+
+        private async Task CreateSaveDatabaseTask()
+        {
+            try
+            {
+                // TODO: Issue about serializing object while other manipulations to the records might be occuring
+                // Serialize to the temp file
+                StorageFile file = await ApplicationData.Current.LocalCacheFolder.CreateFileAsync(DATABASE_TEMP_FILE_NAME, CreationCollisionOption.ReplaceExisting);
+                using (var stream = await file.OpenStreamForWriteAsync())
+                {
+                    using (var writer = new StreamWriter(stream))
+                    {
+                        using (var jsonWriter = new JsonTextWriter(writer))
+                        {
+                            GetSerializer().Serialize(jsonWriter, this);
+                        }
+                    }
+                }
+
+                if (HasBeenDisposed())
+                {
+                    return;
+                }
+
+                // And then copy that to the final destination
+                await file.RenameAsync(DATABASE_FILE_NAME, NameCollisionOption.ReplaceExisting);
+            }
+            catch
+            {
+                Debug.WriteLine("Failed to save");
+            }
+
+            lock (_lock)
+            {
+                if (HasBeenDisposed())
+                {
+                    return;
+                }
+
+                if (_needsAnotherSave)
+                {
+                    // If we need another save, we will continue and save again
+                    _needsAnotherSave = false;
+                }
+                else
+                {
+                    // Otherwise, we're all done, can set the task to null and return
+                    _currSaveTask = null;
+                    return;
                 }
             }
 
-            return conn;
+            await CreateSaveDatabaseTask();
+        }
+
+        private static JsonSerializer GetSerializer()
+        {
+            return JsonSerializer.Create();
         }
 
         /// <summary>
         /// Compares the current Toast notifications in order to obtain what has changed
         /// </summary>
-        /// <returns></returns>
+        /// <returns>Async task</returns>
         public static Task SyncWithPlatformAsync()
         {
             DateTimeOffset now = DateTimeOffset.Now;
@@ -389,7 +560,7 @@ namespace Microsoft.Toolkit.Uwp.Notifications
             });
         }
 
-        private static void SyncWithPlatformHelper(DateTimeOffset now, SQLiteConnection conn)
+        private static void SyncWithPlatformHelper(DateTimeOffset now, ToastHistoryChangeDatabase db)
         {
             // Get all current notifications from the platform
             var notifs = ToastNotificationManager.History.GetHistory().Where(i => i.Tag.Length > 0);
@@ -405,14 +576,13 @@ namespace Microsoft.Toolkit.Uwp.Notifications
             // Obtain the notifications that we have stored
             // We skip notifications that have a DateAdded of future values, since
             // those are scheduled ones that haven't appeared yet.
-            List<QuickRecord> storedNotifs = conn.Query<QuickRecord>(
-                "select UniqueId, ToastTag, ToastGroup, DateAdded, ExpirationTime, Status from ToastHistoryChangeRecord where DateAdded <= ? and Status != ?",
-                now,
-                ToastHistoryChangeRecordStatus.Removed)
-                .ToList();
+            List<ToastHistoryChangeRecord> storedNotifs = db.Records.Where(
+                r =>
+                r.DateAdded <= now
+                && r.Status != ToastHistoryChangeRecordStatus.Removed).ToList();
 
             // Find and remove the dupes
-            List<QuickRecord> dupes = new List<QuickRecord>();
+            List<ToastHistoryChangeRecord> dupes = new List<ToastHistoryChangeRecord>();
             for (int i = 0; i < storedNotifs.Count; i++)
             {
                 var curr = storedNotifs[i];
@@ -434,6 +604,7 @@ namespace Microsoft.Toolkit.Uwp.Notifications
                             storedNotifs.RemoveAt(i);
                             i--;
                         }
+
                         break;
                     }
                 }
@@ -462,99 +633,67 @@ namespace Microsoft.Toolkit.Uwp.Notifications
 
             if (toBeAdded.Count > 0 || toBeRemoved.Count > 0 || dupes.Count > 0)
             {
-                conn.RunInTransaction(() =>
+                // We want to delete any of the dupes
+                if (dupes.Count > 0)
                 {
-                    // We want to delete any of the dupes
-                    List<long> uniqueIdsToDelete = new List<long>(dupes.Select(i => i.UniqueId));
+                    db.Records.RemoveAll(r => dupes.Contains(r));
+                }
 
-                    // And we also delete any that were previously adds via push
-                    // since if the app previously didn't accept that change, we
-                    // don't even inform the app that the push was ever received (since it
-                    // already got dismissed).
-                    uniqueIdsToDelete.AddRange(toBeRemoved.Where(i => i.Status == ToastHistoryChangeRecordStatus.AddedViaPush).Select(i => i.UniqueId));
+                // And we also delete any that were previously adds via push
+                // since if the app previously didn't accept that change, we
+                // don't even inform the app that the push was ever received (since it
+                // already got dismissed).
+                db.Records.RemoveAll(r =>
+                    r.Status == ToastHistoryChangeRecordStatus.AddedViaPush);
 
-                    // Remove these items
-                    if (uniqueIdsToDelete.Count > 0)
+                // Notifications to change to Removed
+                if (toBeRemoved.Count > 0)
+                {
+                    foreach (var r in db.Records.Where(r => toBeRemoved.Contains(r)))
                     {
-                        object[] args = uniqueIdsToDelete.OfType<object>().ToArray();
-                        conn.Execute("delete from ToastHistoryChangeRecord where UniqueId " + In(uniqueIdsToDelete));
+                        r.Status = ToastHistoryChangeRecordStatus.Removed;
+                        r.DateRemoved = now;
                     }
+                }
 
-                    // Notifications to change to Removed
-                    long[] uniqueIdsToChangeToRemoved = toBeRemoved
-                        .Select(i => i.UniqueId)
-                        .ToArray();
-                    if (uniqueIdsToChangeToRemoved.Length > 0)
+                // And add the new ones
+                var newRecords = new List<ToastHistoryChangeRecord>(toBeAdded.Count);
+                foreach (var newNotif in toBeAdded)
+                {
+                    // Populate the record entry for it
+                    var record = new ToastHistoryChangeRecord()
                     {
-                        conn.Execute(
-                            $@"update ToastHistoryChangeRecord
-                            set Status = {(int)ToastHistoryChangeRecordStatus.Removed}, DateRemoved = ?
-                            where UniqueId " + In(uniqueIdsToChangeToRemoved),
-                            now);
-                    }
+                        DateAdded = now,
+                        Status = ToastHistoryChangeRecordStatus.AddedViaPush
+                    };
+                    PopulateRecord(record, newNotif, null);
+                    newRecords.Add(record);
+                }
 
-                    // And add the new ones
-                    var newRecords = new List<ToastHistoryChangeRecord>(toBeAdded.Count);
-                    foreach (var newNotif in toBeAdded)
-                    {
-                        // Populate the record entry for it
-                        var record = new ToastHistoryChangeRecord()
-                        {
-                            DateAdded = now,
-                            Status = ToastHistoryChangeRecordStatus.AddedViaPush
-                        };
-                        PopulateRecord(record, newNotif, null);
-                        newRecords.Add(record);
-                    }
+                if (newRecords.Count > 0)
+                {
+                    db.Records.AddRange(newRecords);
+                }
 
-                    if (newRecords.Count > 0)
-                    {
-                        conn.InsertAll(newRecords, runInTransaction: false);
-                    }
-                });
+                db.SaveDatabaseWithoutWaiting();
             }
-        }
-
-        private static string In(IEnumerable<long> uniqueIds)
-        {
-            return "in (" + string.Join(",", uniqueIds) + ")";
-        }
-
-        private static string In(int count)
-        {
-            // Does not support 0, must be 1 or greater
-            StringBuilder builder = new StringBuilder();
-            builder.Append("in (");
-
-            // Skip the first, since we'll add that at the end
-            for (int i = 1; i < count; i++)
-            {
-                builder.Append("?,");
-            }
-
-            // Now add the first at the end
-            builder.Append("?)");
-
-            return builder.ToString();
         }
 
         /// <summary>
         /// Does not sort.
         /// </summary>
-        /// <returns></returns>
+        /// <returns>Array of the change records.</returns>
         public static Task<ToastHistoryChangeRecord[]> GetChangesAsync()
         {
             DateTimeOffset now = DateTimeOffset.Now;
 
-            return Execute((conn) =>
+            return Execute((db) =>
             {
-                SyncWithPlatformHelper(now, conn);
+                SyncWithPlatformHelper(now, db);
 
                 // No need to check DateAdded since any scheduled ones that haven't popped
                 // yet will still be marked Committed
-                return conn.Table<ToastHistoryChangeRecord>()
-                    .Where(i => i.Status != ToastHistoryChangeRecordStatus.Committed)
-                    .ToArray();
+                return db.Records.Where(r => r.Status != ToastHistoryChangeRecordStatus.Committed).ToArray();
             });
         }
 
@@ -564,33 +703,32 @@ namespace Microsoft.Toolkit.Uwp.Notifications
 
             // AddedViaPush -> Committed -> Deleted (dismissed)
             // Committed (added locally) -> Deleted (dismissed)
-            return Execute((conn) =>
+            return Execute((db) =>
             {
-                conn.RunInTransaction(() =>
-                {
-                    // For removals, the only action is to delete from the database
-                    long[] uniqueIdsToDelete = changes
-                        .Where(i => i.Status == ToastHistoryChangeRecordStatus.Removed)
-                        .Select(i => i.UniqueId)
-                        .ToArray();
-                    if (uniqueIdsToDelete.Length > 0)
-                    {
-                        conn.Execute("delete from ToastHistoryChangeRecord where UniqueId " + In(uniqueIdsToDelete));
-                    }
+                bool changed = false;
 
-                    // For AddedViaPush, we move it to the Committed state
-                    long[] uniqueIdsToCommit = changes
-                        .Where(i => i.Status == ToastHistoryChangeRecordStatus.AddedViaPush)
-                        .Select(i => i.UniqueId)
-                        .ToArray();
-                    if (uniqueIdsToCommit.Length > 0)
+                // For removals, the only action is to delete from the database
+                ToastHistoryChangeRecord[] toRemove = changes.Where(i => i.Status == ToastHistoryChangeRecordStatus.Removed).ToArray();
+                if (toRemove.Length > 0)
+                {
+                    changed = db.Records.RemoveAll(r => toRemove.Contains(r)) > 0;
+                }
+
+                // For AddedViaPush, we move it to the Committed state
+                ToastHistoryChangeRecord[] toCommit = changes.Where(r => r.Status == ToastHistoryChangeRecordStatus.AddedViaPush).ToArray();
+                if (toCommit.Length > 0)
+                {
+                    foreach (var r in db.Records.Where(r => toCommit.Contains(r) && r.Status != ToastHistoryChangeRecordStatus.Committed))
                     {
-                        conn.Execute(
-                            $@"update ToastHistoryChangeRecord
-                        set Status = {(int)ToastHistoryChangeRecordStatus.Committed}
-                        where UniqueId " + In(uniqueIdsToCommit));
+                        r.Status = ToastHistoryChangeRecordStatus.Committed;
+                        changed = true;
                     }
-                });
+                }
+
+                if (changed)
+                {
+                    db.SaveDatabaseWithoutWaiting();
+                }
             });
         }
 
@@ -598,11 +736,9 @@ namespace Microsoft.Toolkit.Uwp.Notifications
         {
             DateTimeOffset now = DateTimeOffset.Now;
 
-            return Execute((conn) =>
+            return Execute((db) =>
             {
-                ToastHistoryChangeRecord[] records = conn.Table<ToastHistoryChangeRecord>()
-                    .Where(i => i.PayloadArguments.Equals(arguments) && i.DateAdded <= now)
-                    .ToArray();
+                ToastHistoryChangeRecord[] records = db.Records.Where(i => i.PayloadArguments.Equals(arguments) && i.DateAdded <= now).ToArray();
 
                 if (records.Length == 0)
                 {
@@ -618,22 +754,24 @@ namespace Microsoft.Toolkit.Uwp.Notifications
                     }
                 }
 
-                conn.Execute("delete from ToastHistoryChangeRecord where PayloadArguments = ?", arguments);
+                db.Records.RemoveAll(r => object.Equals(r.PayloadArguments, arguments));
+
+                db.SaveDatabaseWithoutWaiting();
 
                 return newest;
             });
         }
 
-        private static Task Execute(Action<SQLiteConnection> action)
+        private static Task Execute(Action<ToastHistoryChangeDatabase> action)
         {
-            return Execute<bool>((conn) =>
+            return Execute<bool>((db) =>
             {
-                action(conn);
+                action(db);
                 return true;
             });
         }
 
-        private static Task<T> Execute<T>(Func<SQLiteConnection, T> action)
+        private static Task<T> Execute<T>(Func<ToastHistoryChangeDatabase, T> action)
         {
             try
             {
@@ -647,7 +785,7 @@ namespace Microsoft.Toolkit.Uwp.Notifications
                 {
                     // We'll just always use a write lock, since 90% of the time we're always writing
                     // (even when reading, we'll be potentially creating the database for the first time)
-                    using (Locks.LockForWrite())
+                    using (await Locks.LockAsync())
                     {
                         // Initialize settings
                         await ToastHistoryChangeTrackerConfiguration.InitializeAsync();
@@ -658,14 +796,12 @@ namespace Microsoft.Toolkit.Uwp.Notifications
                             return default(T);
                         }
 
-                        using (var conn = CreateConnection())
-                        {
-                            return action.Invoke(conn);
-                        }
+                        var db = await GetDatabaseAsync();
+
+                        return action.Invoke(db);
                     }
                 });
             }
-
             catch
             {
                 SetIsInGoodState(false);
@@ -675,50 +811,75 @@ namespace Microsoft.Toolkit.Uwp.Notifications
 
         private static async Task DeleteDatabaseAsync()
         {
+            StorageFile file = null;
+
             try
             {
-                await (await ApplicationData.Current.LocalFolder.GetFileAsync(DATABASE_FILE_NAME)).DeleteAsync();
+                file = await ApplicationData.Current.LocalCacheFolder.GetFileAsync(DATABASE_FILE_NAME);
+            }
+            catch (FileNotFoundException)
+            {
+                // Continue
+            }
+            catch
+            {
+                throw;
             }
 
-            catch { }
+            if (file != null)
+            {
+                await file.DeleteAsync();
+            }
+
+            lock (_lock)
+            {
+                if (_getDatabaseTask != null)
+                {
+                    if (_getDatabaseTask.IsCompleted && _getDatabaseTask.Result != null)
+                    {
+                        _getDatabaseTask.Result._needsAnotherSave = false;
+                    }
+                    _getDatabaseTask = null;
+                }
+            }
         }
 
-        private static void CreateDatabase()
+        private static async Task CreateDatabaseAsync()
         {
             DateTimeOffset now = DateTimeOffset.Now;
             var notifs = ToastNotificationManager.History.GetHistory();
             var scheduledNotifs = ToastNotificationManager.CreateToastNotifier().GetScheduledToastNotifications();
 
-            using (var conn = CreateConnection(enabling: true))
+            var db = await GetDatabaseAsync();
+
+            // We populate it with the initial toast notifications
+            var newRecords = new List<ToastHistoryChangeRecord>(notifs.Count);
+            foreach (var newNotif in notifs.Where(i => i.Tag.Length > 0))
             {
-                // We populate it with the initial toast notifications
-                var newRecords = new List<ToastHistoryChangeRecord>(notifs.Count);
-                foreach (var newNotif in notifs.Where(i => i.Tag.Length > 0))
+                // Populate the record entry for it
+                var record = new ToastHistoryChangeRecord()
                 {
-                    // Populate the record entry for it
-                    var record = new ToastHistoryChangeRecord()
-                    {
-                        DateAdded = now,
-                        Status = ToastHistoryChangeRecordStatus.Committed
-                    };
-                    PopulateRecord(record, newNotif, null);
-                    newRecords.Add(record);
-                }
-
-                // And also the scheduled notifications
-                foreach (var scheduled in scheduledNotifs.Where(i => i.Tag.Length > 0))
-                {
-                    var record = new ToastHistoryChangeRecord()
-                    {
-                        DateAdded = scheduled.DeliveryTime,
-                        Status = ToastHistoryChangeRecordStatus.Committed
-                    };
-                    PopulateRecord(record, scheduled, null);
-                    newRecords.Add(record);
-                }
-
-                conn.InsertAll(newRecords);
+                    DateAdded = now,
+                    Status = ToastHistoryChangeRecordStatus.Committed
+                };
+                PopulateRecord(record, newNotif, null);
+                newRecords.Add(record);
             }
+
+            // And also the scheduled notifications
+            foreach (var scheduled in scheduledNotifs.Where(i => i.Tag.Length > 0))
+            {
+                var record = new ToastHistoryChangeRecord()
+                {
+                    DateAdded = scheduled.DeliveryTime,
+                    Status = ToastHistoryChangeRecordStatus.Committed
+                };
+                PopulateRecord(record, scheduled, null);
+                newRecords.Add(record);
+            }
+
+            db.Records.AddRange(newRecords);
+            await db.SaveDatabaseAsync();
 
             SetIsInGoodState(true);
         }
@@ -727,7 +888,7 @@ namespace Microsoft.Toolkit.Uwp.Notifications
         {
             return Task.Run(async delegate
             {
-                using (Locks.LockForWrite())
+                using (await Locks.LockAsync())
                 {
                     if (GetIsInGoodState())
                     {
@@ -738,7 +899,7 @@ namespace Microsoft.Toolkit.Uwp.Notifications
                     await DeleteDatabaseAsync();
 
                     // Then re-create
-                    CreateDatabase();
+                    await CreateDatabaseAsync();
                 }
             });
         }
@@ -747,30 +908,20 @@ namespace Microsoft.Toolkit.Uwp.Notifications
         {
             return Task.Run(async delegate
             {
-                using (Locks.LockForWrite())
+                using (await Locks.LockAsync())
                 {
                     // Delete first
                     await DeleteDatabaseAsync();
 
                     // Then re-create
-                    CreateDatabase();
+                    await CreateDatabaseAsync();
                 }
             });
         }
 
-        internal class QuickRecord
+        internal static void ClearCache()
         {
-            public long UniqueId { get; set; }
-
-            public string ToastTag { get; set; }
-
-            public string ToastGroup { get; set; }
-
-            public DateTimeOffset DateAdded { get; set; }
-
-            public DateTimeOffset ExpirationTime { get; set; }
-
-            public ToastHistoryChangeRecordStatus Status { get; set; }
+            _getDatabaseTask = null;
         }
     }
 }

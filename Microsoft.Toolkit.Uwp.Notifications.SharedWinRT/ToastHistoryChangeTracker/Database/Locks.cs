@@ -1,22 +1,19 @@
-﻿using System;
+﻿using Microsoft.Toolkit.Uwp.Notifications.SharedWinRT.ToastHistoryChangeTracker.Database;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace Microsoft.Toolkit.Uwp.Notifications
 {
     internal static class Locks
     {
-        private static readonly MultiProcessReadWriteLocker _lock = new MultiProcessReadWriteLocker();
+        private static readonly AsyncLocker _locker = new AsyncLocker();
 
-        private const int MILLISECOND_TIMEOUT = 5000;
-        
-        public static IDisposable LockForWrite()
+        public static Task<IDisposable> LockAsync()
         {
-            Debug.WriteLine("Locking for write...");
-            IDisposable answer = _lock.LockWrite(MILLISECOND_TIMEOUT);
-            Debug.WriteLine("Locked for write.");
-            return answer;
+            return _locker.LockAsync();
         }
     }
 }

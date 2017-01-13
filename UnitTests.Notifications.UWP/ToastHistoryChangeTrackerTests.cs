@@ -22,8 +22,12 @@ namespace UnitTests.Notifications
                 notifier.RemoveFromSchedule(scheduled);
             }
             ToastNotificationManager.History.Clear();
+            await Task.Delay(100); // Give the UWP platform time
+            Assert.AreEqual(0, ToastNotificationManager.History.GetHistory().Count, "Platform failed to clear toasts");
             await ToastHistoryChangeTracker.Current.ResetAsync();
             await ToastHistoryChangeTracker.Current.EnableAsync();
+
+            Assert.AreEqual(0, (await GetChangesAsync()).Count, "ChangeTracker failed to clear previous changes");
         }
 
         [TestMethod]
@@ -504,6 +508,9 @@ namespace UnitTests.Notifications
             notif = new ToastNotification(CreateToastContent("Third"));
             await Show(notif, "Third");
 
+            // Give the UWP platform time to commit the toasts
+            await Task.Delay(100);
+
             var history = ToastNotificationManager.History.GetHistory();
             Assert.AreEqual(3, history.Count);
 
@@ -582,6 +589,25 @@ namespace UnitTests.Notifications
             Assert.AreEqual(ToastHistoryChangeType.Removed, changes[0].ChangeType);
             Assert.AreEqual("1", changes[0].Tag);
             Assert.AreEqual("First", changes[0].AdditionalData);
+        }
+
+        [TestMethod]
+        public async Task TestNotWaiting01()
+        {
+            var task1 = Show("First", "1");
+            var task2 = Show("Second", "2");
+            var task3 = Show("Third", "3");
+
+            await task1;
+            await task2;
+            await task3;
+
+            var history = GetHistory();
+
+            Assert.Equals(3, history.Count);
+
+            Assert.Equals("3", history[0].Tag);
+            Assert.Equals("2", history[1].Tag);
         }
     }
 }

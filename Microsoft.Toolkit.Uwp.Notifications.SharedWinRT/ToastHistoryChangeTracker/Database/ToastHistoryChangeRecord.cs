@@ -1,5 +1,4 @@
-﻿using SQLite.Net.Attributes;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text;
 
@@ -7,23 +6,13 @@ namespace Microsoft.Toolkit.Uwp.Notifications
 {
     internal class ToastHistoryChangeRecord : IComparable<ToastHistoryChangeRecord>
     {
-        [PrimaryKey]
-        [AutoIncrement]
-        public long UniqueId { get; set; }
-
         /// <summary>
         /// 64 chars for tag/group
         /// </summary>
         internal const int MAX_LENGTH_OF_TAG_AND_GROUP = 64;
-        
-        [Indexed(Name="TagAndGroupIndex")]
-        [MaxLength(MAX_LENGTH_OF_TAG_AND_GROUP)]
-        [NotNull]
+
         public string ToastTag { get; set; }
 
-        [Indexed(Name = "TagAndGroupIndex")]
-        [MaxLength(MAX_LENGTH_OF_TAG_AND_GROUP)]
-        [NotNull]
         public string ToastGroup { get; set; }
 
         public ToastHistoryChangeRecordStatus Status { get; set; }

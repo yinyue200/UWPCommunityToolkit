@@ -27,10 +27,13 @@ namespace UnitTests.Notifications
             await ToastHistoryChangeTracker.Current.EnableAsync();
             
             // Delete the database file so that we're in an invalid state
-            foreach (var file in await ApplicationData.Current.LocalFolder.GetFilesAsync())
+            foreach (var file in await ApplicationData.Current.LocalCacheFolder.GetFilesAsync())
             {
                 await file.DeleteAsync(StorageDeleteOption.PermanentDelete);
             }
+
+            // And clear the cached item
+            ToastHistoryChangeDatabase.ClearCache();
         }
 
         [TestCleanup]

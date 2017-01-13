@@ -11,8 +11,8 @@
   <ItemGroup>
     <Compile Include="$(MSBuildThisFileDirectory)ToastExtensions\ToastNotificationHistoryExtensions.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ToastExtensions\ToastNotifierExtensions.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToastHistoryChangeTracker\Database\AsyncLocker.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ToastHistoryChangeTracker\Database\Locks.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)ToastHistoryChangeTracker\Database\MultiProcessReadWriteLocker.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ToastHistoryChangeTracker\Database\ToastHistoryChangeDatabase.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ToastHistoryChangeTracker\Database\ToastHistoryChangeDatabaseOriginalActionException.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ToastHistoryChangeTracker\Database\ToastHistoryChangeRecord.cs" />

@@ -42,5 +42,19 @@ namespace Microsoft.Toolkit.Uwp.Notifications
         {
             return ToastHistoryChangeDatabase.ResetAsync().AsAsyncAction();
         }
+
+        /// <summary>
+        /// Returns a task that represents the current database saving operation. You must await this task before your app closes, otherwise
+        /// the history change tracking might not be saved. This is especially critical to await when using the tracker in a background task,
+        /// since the background process will be terminated immediately after you release the deferral, meaning the tracker won't have time
+        /// to save the changes to disk.
+        /// </summary>
+        public Task SavingTask
+        {
+            get
+            {
+                return ToastHistoryChangeDatabase.SavingTask;
+            }
+        }
     }
 }

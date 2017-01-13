@@ -239,6 +239,8 @@ namespace Microsoft.Toolkit.Uwp.DemoChatApp
                 {
                     TileHelper.Update();
                 }
+
+                await ToastHistoryChangeTracker.Current.SavingTask;
             }
             catch { }
         }

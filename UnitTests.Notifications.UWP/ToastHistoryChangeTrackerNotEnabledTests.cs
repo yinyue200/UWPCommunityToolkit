@@ -24,7 +24,7 @@ namespace UnitTests.Notifications.UWP
             }
             ToastNotificationManager.History.Clear();
             // Remove any files so that change tracker is reset to default non-enabled state
-            foreach (var file in await ApplicationData.Current.LocalFolder.GetFilesAsync())
+            foreach (var file in await ApplicationData.Current.LocalCacheFolder.GetFilesAsync())
             {
                 await file.DeleteAsync(StorageDeleteOption.PermanentDelete);
             }
