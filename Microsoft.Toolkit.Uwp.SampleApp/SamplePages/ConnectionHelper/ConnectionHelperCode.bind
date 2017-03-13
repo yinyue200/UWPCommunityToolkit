@@ -1,15 +1,15 @@
 // Detect if Internet can be reached
-if (NetworkHelper.Instance.ConnectionInformation.IsInternetAvailable)
+if (ConnectionHelper.IsInternetAvailable)
 {
 }
 
 // Detect if the connection is metered
-if (NetworkHelper.Instance.ConnectionInformation.IsInternetOnMeteredConnection)
+if (ConnectionHelper.IsInternetOnMeteredConnection)
 {
 }
 
 // Get precise connection type
-switch(NetworkHelper.Instance.ConnectionInformation.ConnectionType)
+switch(ConnectionHelper.ConnectionType)
 {
 	case ConnectionType.Ethernet:
 		// Ethernet
