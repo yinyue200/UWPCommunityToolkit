@@ -604,10 +604,10 @@ namespace UnitTests.Notifications
 
             var history = GetHistory();
 
-            Assert.Equals(3, history.Count);
+            Assert.AreEqual(3, history.Count);
 
-            Assert.Equals("3", history[0].Tag);
-            Assert.Equals("2", history[1].Tag);
+            Assert.AreEqual("3", history[0].Tag);
+            Assert.AreEqual("2", history[1].Tag);
         }
     }
 }

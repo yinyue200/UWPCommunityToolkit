@@ -17,6 +17,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)ToastHistoryChangeTracker\Database\ToastHistoryChangeDatabaseOriginalActionException.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ToastHistoryChangeTracker\Database\ToastHistoryChangeRecord.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ToastHistoryChangeTracker\Database\ToastHistoryChangeRecordStatus.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToastHistoryChangeTracker\Database\ToastHistoryDatabaseCorruptException.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ToastHistoryChangeTracker\ToastHistoryChange.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ToastHistoryChangeTracker\ToastHistoryChangeReader.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ToastHistoryChangeTracker\ToastHistoryChangeTracker.cs" />

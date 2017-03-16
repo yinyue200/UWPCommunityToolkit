@@ -39,6 +39,9 @@ namespace UnitTests.Notifications
         [TestCleanup]
         public async Task Cleanup()
         {
+            // Clear the cached item
+            ToastHistoryChangeDatabase.ClearCache();
+
             await AssertChangeTrackingLost();
         }
 
@@ -78,8 +81,8 @@ namespace UnitTests.Notifications
             Assert.AreEqual(ToastHistoryChangeType.Removed, changes[0].ChangeType);
             Assert.AreEqual("1", changes[0].Tag);
 
-            // Delete the database file so that we're in an invalid state
-            foreach (var file in await ApplicationData.Current.LocalFolder.GetFilesAsync())
+            // Delete the database file so that we're in an invalid state (cleanup checks this)
+            foreach (var file in await ApplicationData.Current.LocalCacheFolder.GetFilesAsync())
             {
                 await file.DeleteAsync(StorageDeleteOption.PermanentDelete);
             }

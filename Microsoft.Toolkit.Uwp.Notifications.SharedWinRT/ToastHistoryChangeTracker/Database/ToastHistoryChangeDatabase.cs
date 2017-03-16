@@ -24,11 +24,6 @@ namespace Microsoft.Toolkit.Uwp.Notifications
 
         private ToastHistoryChangeDatabase() { }
 
-        private ToastHistoryChangeDatabase(bool isCorrupt)
-        {
-            // TODO
-        }
-
         private static bool GetIsInGoodState()
         {
             return ApplicationData.Current.LocalSettings.Values.ContainsKey(IS_IN_GOOD_STATE_SETTINGS_KEY);
@@ -237,6 +232,15 @@ namespace Microsoft.Toolkit.Uwp.Notifications
             }
         }
 
+        /// <summary>
+        /// Handles checking if database is in good state and loading the database, and then performs the provided database action.
+        /// Then, after that completes, the original action (like sending a toast) will be performed.
+        /// This ensures that the original action will ALWAYS be executed, regardless of database corruption or database exceptions.
+        /// If there is an exception in the original action (like invalid tag provided when showing a notification), that platform exception will be surfaced.
+        /// </summary>
+        /// <param name="databaseAction"></param>
+        /// <param name="originalAction"></param>
+        /// <returns></returns>
         private static async Task ExecuteEnhanced(Action<ToastHistoryChangeDatabase> databaseAction, Action originalAction)
         {
             // We wrap our original action so that if it throws, we can
@@ -257,7 +261,7 @@ namespace Microsoft.Toolkit.Uwp.Notifications
 
                 await Task.Run(async delegate
                 {
-                    // We'll just always use a write lock, since 90% of the time we're always writing
+                    // We'll just use a generic lock rather than a read/write lock, since 90% of the time we're always writing
                     // (even when reading, we'll be potentially creating the database for the first time)
                     using (await Locks.LockAsync())
                     {
@@ -273,7 +277,25 @@ namespace Microsoft.Toolkit.Uwp.Notifications
                         // Initialize settings
                         await ToastHistoryChangeTrackerConfiguration.InitializeAsync();
 
-                        var db = await GetDatabaseAsync();
+                        ToastHistoryChangeDatabase db;
+
+                        try
+                        {
+                            db = await GetDatabaseAsync();
+                        }
+                        catch (ToastHistoryDatabaseCorruptException)
+                        {
+                            // Set bad state
+                            try
+                            {
+                                SetIsInGoodState(false);
+                            }
+                            catch { }
+
+                            // If corrupt we still execute original action before we stop
+                            originalAction();
+                            return;
+                        }
 
                         // Execute the database action
                         databaseAction(db);
@@ -284,9 +306,9 @@ namespace Microsoft.Toolkit.Uwp.Notifications
                 });
             }
 
-            // If the original action failed, we throw this exception,
+            // If the original platform action failed (like showing a toast), we throw the platform exception,
             // which means that nothing's wrong with the data state itself.
-            // This exception should be surfaced to the developer.
+            // The platform exception should be surfaced to the developer.
             catch (ToastHistoryChangeDatabaseOriginalActionException ex)
             {
                 throw ex.OriginalException;
@@ -423,20 +445,21 @@ namespace Microsoft.Toolkit.Uwp.Notifications
                     }
                 }
             }
-            catch (FileNotFoundException)
-            {
-                return new ToastHistoryChangeDatabase();
-            }
             catch
             {
-                // Corrupt, etc
-                return new Notifications.ToastHistoryChangeDatabase(isCorrupt: true);
+                // Corrupt, file not found, etc
+                throw new ToastHistoryDatabaseCorruptException();
             }
         }
 
         private static ToastHistoryChangeDatabase GetCurrDatabase()
         {
-            return _getDatabaseTask?.Result;
+            if (_getDatabaseTask != null && _getDatabaseTask.IsCompleted && !_getDatabaseTask.IsFaulted)
+            {
+                return _getDatabaseTask.Result;
+            }
+
+            return null;
         }
 
         private void SaveDatabaseWithoutWaiting()
@@ -796,7 +819,24 @@ namespace Microsoft.Toolkit.Uwp.Notifications
                             return default(T);
                         }
 
-                        var db = await GetDatabaseAsync();
+                        ToastHistoryChangeDatabase db;
+
+                        try
+                        {
+                            db = await GetDatabaseAsync();
+                        }
+                        catch (ToastHistoryDatabaseCorruptException)
+                        {
+                            // Set bad state
+                            try
+                            {
+                                SetIsInGoodState(false);
+                            }
+                            catch { }
+
+                            // If database corrupt, we return default result
+                            return default(T);
+                        }
 
                         return action.Invoke(db);
                     }
@@ -835,7 +875,7 @@ namespace Microsoft.Toolkit.Uwp.Notifications
             {
                 if (_getDatabaseTask != null)
                 {
-                    if (_getDatabaseTask.IsCompleted && _getDatabaseTask.Result != null)
+                    if (_getDatabaseTask.IsCompleted && !_getDatabaseTask.IsFaulted && _getDatabaseTask.Result != null)
                     {
                         _getDatabaseTask.Result._needsAnotherSave = false;
                     }
@@ -850,7 +890,8 @@ namespace Microsoft.Toolkit.Uwp.Notifications
             var notifs = ToastNotificationManager.History.GetHistory();
             var scheduledNotifs = ToastNotificationManager.CreateToastNotifier().GetScheduledToastNotifications();
 
-            var db = await GetDatabaseAsync();
+            ToastHistoryChangeDatabase db = new ToastHistoryChangeDatabase();
+            _getDatabaseTask = Task.FromResult(db);
 
             // We populate it with the initial toast notifications
             var newRecords = new List<ToastHistoryChangeRecord>(notifs.Count);
