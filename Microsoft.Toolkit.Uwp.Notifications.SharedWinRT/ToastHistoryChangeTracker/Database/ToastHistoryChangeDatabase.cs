@@ -590,8 +590,8 @@ namespace Microsoft.Toolkit.Uwp.Notifications
 
             var toBeAdded = new List<ToastNotification>();
 
-            // HMM TODO - we should probably manage dupes while inserting... then we can make the updating a lot more efficient too
-            // for when we support expire
+            // TODO - we should probably manage dupes while inserting... then we can make the updating a lot more efficient too
+            // for when we support expire. Although this may no longer be necessary since we are using a flat serialized file now rather than a DB
 
             // The only time we'll have dupes is from scheduled notifications that finally "popped"
             // (their DateAdded is finally less than current time)
