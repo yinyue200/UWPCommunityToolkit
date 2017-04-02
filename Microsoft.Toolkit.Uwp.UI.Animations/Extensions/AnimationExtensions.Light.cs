@@ -13,13 +13,15 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Microsoft.Graphics.Canvas;
-using Microsoft.Graphics.Canvas.Effects;
+
+// using Microsoft.Graphics.Canvas;
+// using Microsoft.Graphics.Canvas.Effects;
 using Windows.UI;
 using Windows.UI.Composition;
 using Windows.UI.Composition.Effects;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Hosting;
+using Yinyue200.Sharp2D.Direct2D.Effects;
 
 namespace Microsoft.Toolkit.Uwp.UI.Animations
 {
@@ -136,8 +138,8 @@ namespace Microsoft.Toolkit.Uwp.UI.Animations
 
                 if (!pointLights.ContainsKey(visual))
                 {
-                    SurfaceLoader.Initialize(compositor);
-                    normalMap = SurfaceLoader.LoadText(string.Empty, new Windows.Foundation.Size(512, 512), new Graphics.Canvas.Text.CanvasTextFormat(), Colors.Transparent, Colors.Transparent);
+                    // SurfaceLoader.Initialize(compositor);
+                    // normalMap = SurfaceLoader.LoadText(string.Empty, new Windows.Foundation.Size(512, 512), new Graphics.Canvas.Text.CanvasTextFormat(), Colors.Transparent, Colors.Transparent);
                 }
 
                 if (pointLights.ContainsKey(visual))

@@ -10,9 +10,9 @@
 // THE CODE OR THE USE OR OTHER DEALINGS IN THE CODE.
 // ******************************************************************
 
-using Microsoft.Graphics.Canvas.Effects;
 using Windows.Foundation.Metadata;
 using Windows.UI.Composition;
+using Yinyue200.Sharp2D.Direct2D.Effects;
 
 namespace Microsoft.Toolkit.Uwp.UI.Animations.Effects
 {

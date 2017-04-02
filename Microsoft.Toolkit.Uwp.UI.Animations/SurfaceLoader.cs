@@ -12,9 +12,10 @@
 
 using System;
 using System.Threading.Tasks;
-using Microsoft.Graphics.Canvas;
-using Microsoft.Graphics.Canvas.Text;
-using Microsoft.Graphics.Canvas.UI.Composition;
+
+// using Microsoft.Graphics.Canvas;
+// using Microsoft.Graphics.Canvas.Text;
+// using Microsoft.Graphics.Canvas.UI.Composition;
 using Windows.Foundation;
 using Windows.Graphics.DirectX;
 using Windows.UI;
@@ -22,6 +23,7 @@ using Windows.UI.Composition;
 
 namespace Microsoft.Toolkit.Uwp.UI.Animations
 {
+    /*
     /// <summary>
     /// A delegate for load time effects.
     /// </summary>
@@ -193,4 +195,5 @@ namespace Microsoft.Toolkit.Uwp.UI.Animations
             }
         }
     }
+    */
 }
